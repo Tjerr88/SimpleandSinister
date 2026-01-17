@@ -1,205 +1,844 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Simple &amp; Sinister</title>
 <style>
-body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0f1115;color:#f5f5f5}
-header{padding:1rem;text-align:center;font-weight:600;letter-spacing:.5px}
-section{padding:1rem}
-.card{background:#1b1f27;border-radius:14px;padding:1rem;margin-bottom:1rem}
-h2{font-size:1rem;margin:0 0 .75rem 0;font-weight:600}
-.row{display:flex;justify-content:space-between;align-items:center;margin:.35rem 0}
-button{background:#2e3442;color:#fff;border:none;border-radius:12px;padding:.6rem .9rem;font-size:.9rem}
-button.primary{background:#4c7dff}
-button.done{background:#2f9e44}
-.timer{font-size:2rem;text-align:center;margin:.5rem 0}
-.set{display:flex;justify-content:space-between;padding:.35rem 0}
-.star{color:#ffd43b}
-footer{padding:1rem;text-align:center;font-size:.8rem;color:#777}
+  :root{
+    --bg:#0f1115; --card:#1b1f27; --muted:#a9b0bf; --line:#2a2f3b;
+    --btn:#2e3442; --primary:#4c7dff; --done:#2f9e44; --warn:#f59f00;
+    --radius:14px;
+  }
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#f5f5f5}
+  header{padding:1rem;text-align:center;font-weight:700;letter-spacing:.3px}
+  .tabs{display:flex;gap:.5rem;justify-content:center;padding:0 1rem 1rem;flex-wrap:wrap}
+  .tab{background:var(--card);color:#fff;border:none;border-radius:999px;padding:.45rem .85rem;font-size:.95rem}
+  .tab.active{background:var(--primary)}
+  section{padding:0 1rem 1rem}
+  .card{background:var(--card);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+  h2{font-size:1rem;margin:0 0 .75rem 0;font-weight:700}
+  .row{display:flex;justify-content:space-between;align-items:center;margin:.4rem 0;gap:.75rem;flex-wrap:wrap}
+  .muted{color:var(--muted);font-size:.92rem}
+  .hr{height:1px;background:var(--line);margin:.75rem 0}
+  button{background:var(--btn);color:#fff;border:none;border-radius:12px;padding:.6rem .9rem;font-size:.95rem}
+  button.primary{background:var(--primary)}
+  button.done{background:var(--done)}
+  button.warn{background:var(--warn);color:#111}
+  button.ghost{background:transparent;border:1px solid var(--line)}
+  .timer{font-size:2.1rem;text-align:center;margin:.4rem 0}
+  .set{display:flex;justify-content:space-between;align-items:center;padding:.32rem 0}
+
+  .set.doneRow{opacity:.55;text-decoration:line-through}
+  .set input[type="checkbox"]{margin-right:.6rem}
+
+  .star{color:#ffd43b}
+  select{background:var(--btn);color:#fff;border:1px solid var(--btn);border-radius:10px;padding:.45rem .6rem;font-size:.95rem}
+  input[type="checkbox"]{width:18px;height:18px}
+  .historyItem{display:flex;justify-content:space-between;gap:1rem;padding:.45rem 0}
+  .historyItem .left{white-space:nowrap}
+  .historyItem .right{margin-left:auto;white-space:nowrap}
+  footer{padding:1rem;text-align:center;font-size:.8rem;color:#777}
 </style>
 </head>
 <body>
-
 <header>Simple &amp; Sinister</header>
 
-<section>
-<div class="card"><h2>Status</h2><div id="status">Loading…</div></div>
-
-<div class="card" id="warmup">
-<h2>Warm-up</h2>
-<div id="warmupList"></div>
-<button class="primary" onclick="nextBlock('skill')">Warm-up done</button>
+<div class="tabs">
+  <button id="tabToday" class="tab active" onclick="showTab('today')">Today</button>
+  <button id="tabHistory" class="tab" onclick="showTab('history')">History</button>
+  <button id="tabSettings" class="tab" onclick="showTab('settings')">Settings</button>
 </div>
 
-<div class="card" id="skill" style="display:none">
-<h2>Skill</h2>
-<div id="skillName"></div>
-<div class="timer" id="skillTimer">5:00</div>
-<button onclick="startTimer('skill',300)">Start</button>
-<button class="done" onclick="nextBlock('swings')">Finish</button>
-</div>
+<section id="todayTab">
+  <div class="card">
+    <h2>Status</h2>
+    <div id="status">Loading…</div>
+    <div class="hr"></div>
+    <div class="muted" id="status2"></div>
+  </div>
 
-<div class="card" id="swings" style="display:none">
-<h2>Swings</h2>
-<div class="timer" id="swingTimer">0:00</div>
-<div id="swingSets"></div>
-<button onclick="startCountUp('swingTimer')">Start Swings</button>
-<button class="done" onclick="finishSwings()">Finish Swings</button>
-</div>
+  <div class="card" id="warmupCard">
+    <h2>Warm-up</h2>
+    <div id="warmupList"></div>
+    <div class="hr"></div>
+    <button class="primary" onclick="go('skillCard')">Warm-up done</button>
+  </div>
 
-<div class="card" id="rest" style="display:none">
-<h2>Rest</h2>
-<div class="timer" id="restTimer">1:00</div>
-</div>
+  <div class="card" id="skillCard" style="display:none">
+    <h2>Skill</h2>
+    <div id="skillLine" class="muted"></div>
+    <div class="timer" id="skillTimer">5:00</div>
+    <div class="row">
+      <button onclick="startSkill()">Start</button>
+      <button class="done" onclick="finishSkill()">Finish</button>
+      <button class="ghost" onclick="skipSkill()">Skip</button>
+    </div>
+  </div>
 
-<div class="card" id="getups" style="display:none">
-<h2>Get-Ups</h2>
-<div class="timer" id="getupTimer">0:00</div>
-<div id="getupSets"></div>
-<button onclick="startCountUp('getupTimer')">Start Get-Ups</button>
-<button class="done" onclick="finishGetUps()">Finish Get-Ups</button>
-</div>
+  <div class="card" id="swingsCard" style="display:none">
+    <h2>Swings</h2>
+    <div class="timer" id="swingTimer">0:00</div>
+    <div id="swingSets"></div>
+    <div class="hr"></div>
+    <div class="row">
+      <button onclick="startSwings()">Start</button>
+      <button class="done" onclick="finishSwings()">Finish Swings</button>
+    </div>
+  </div>
 
-<div class="card" id="cooldown" style="display:none">
-<h2>Cool-down</h2>
-<div class="row">90/90 Stretch</div>
-<div class="row">Straddle Stretch</div>
-<button class="primary" onclick="finishSession()">Finish Session</button>
-</div>
+  <div class="card" id="restCard" style="display:none">
+    <h2>Rest</h2>
+    <div class="timer" id="restTimer">1:00</div>
+    <div class="muted">Auto-advances after 1:00</div>
+  </div>
+
+  <div class="card" id="getupsCard" style="display:none">
+    <h2>Get-Ups</h2>
+    <div class="timer" id="getupTimer">0:00</div>
+    <div id="getupSets"></div>
+    <div class="hr"></div>
+    <div class="row">
+      <button onclick="startGetUps()">Start</button>
+      <button class="done" onclick="finishGetUps()">Finish Get-Ups</button>
+    </div>
+  </div>
+
+  <div class="card" id="cooldownCard" style="display:none">
+
+    <div class="timer" id="cooldownTimer">1:00</div>
+    <div class="row">
+      <button onclick="startCooldown()">Start 1:00</button>
+    </div>
+
+    <h2>Cool-down</h2>
+    <div class="row"><span>90/90 Stretch</span></div>
+    <div class="row"><span>Straddle Stretch</span></div>
+    <div class="hr"></div>
+    <div class="row">
+      <button class="primary" onclick="finishSession()">Finish Session</button>
+      <button class="ghost" onclick="resetToWarmup()">Back to top</button>
+    </div>
+  </div>
+</section>
+
+<section id="historyTab" style="display:none">
+  <div class="card">
+    <h2>History</h2>
+    <div class="muted">Swings time · Get-Ups time</div>
+    <div class="hr"></div>
+    <div id="historyList"></div>
+    <div class="hr"></div>
+    <div class="row" style="flex-wrap:wrap">
+      <button class="ghost" onclick="exportCSV()">Export CSV</button>
+      <button class="ghost" onclick="clearHistory()">Clear History</button>
+    </div>
+  </div>
+</section>
+
+<section id="settingsTab" style="display:none">
+  <div class="card">
+    <h2>Settings</h2>
+
+    <div class="row">
+      <span class="muted">Current Bell (S)</span>
+      <select id="bellSelect" onchange="setBell(this.value)"></select>
+    </div>
+
+    <div class="row">
+      <span class="muted">Wave mode</span>
+      <label class="row" style="gap:.5rem;justify-content:flex-end;margin:0">
+        <input id="waveToggle" type="checkbox" onchange="setWave(this.checked)" />
+        <span class="muted">+4 kg between cycles</span>
+      </label>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="row">
+      <span class="muted">Skills block</span>
+      <label class="row" style="gap:.5rem;justify-content:flex-end;margin:0">
+        <input id="skillsToggle" type="checkbox" onchange="setSkillsEnabled(this.checked)" />
+        <span class="muted">Enabled</span>
+      </label>
+    </div>
+
+    <div class="row">
+      <span class="muted">SFG I ↔ II cycle</span>
+      <select id="cycleSelect" onchange="setSfgCycleWeeks(this.value)">
+        <option value="2">2 weeks</option>
+        <option value="3">3 weeks</option>
+        <option value="4">4 weeks</option>
+      </select>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="row">
+      <span class="muted">Post-Simple sessions/week</span>
+      <select id="postFreqSelect" onchange="setPostFreq(this.value)">
+        <option value="4">4 (default)</option>
+        <option value="3">3</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <span class="muted">Timed day in Post-Simple</span>
+      <label class="row" style="gap:.5rem;justify-content:flex-end;margin:0">
+        <input id="timedToggle" type="checkbox" onchange="setTimedEnabled(this.checked)" />
+        <span class="muted">Enabled</span>
+      </label>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="row">
+      <button class="warn" onclick="resetProgram()">Reset program (keep history)</button>
+      <button class="ghost" onclick="resetAll()">Factory reset</button>
+    </div>
+
+    <div class="hr"></div>
+    <div class="muted">
+      Notes: Timeless = &lt;32 kg. Post-Simple = ≥32 kg. Two-hand swings every 3rd session.
+    </div>
+  </div>
 </section>
 
 <footer>Simple &amp; Sinister</footer>
 
 <script>
-let state = JSON.parse(localStorage.getItem('ss_state')) || {session:0,S:24,step:1,phase:'auto',skillCycle:0,skillSet:'I'};
+/* ---------- Storage ---------- */
+const DEFAULT_STATE = {
+  session: 0,
+  S: 24,
+  step: 0,
+  phase: 'auto',
+  wave: false,
+  skillsEnabled: true,
+  skillCycle: 0,
+  sfgCycleWeeks: 2,
+  postSessionsPerWeek: 4,
+  timedEnabled: true
+};
 
-const SFG1=[
-{name:'Military Press',ladder:'1-2-3'},
-{name:'Double Front Squat',ladder:'1-2-3'},
-{name:'Snatch',ladder:'5-10-15'},
-{name:'Double Clean',ladder:'2-4-6'}
+let state = (() => {
+  const raw = localStorage.getItem('ss_state');
+  if(!raw) return structuredClone(DEFAULT_STATE);
+  try{
+    const s = JSON.parse(raw);
+    return {...structuredClone(DEFAULT_STATE), ...s};
+  }catch{
+    return structuredClone(DEFAULT_STATE);
+  }
+})();
+
+let history = (() => {
+  const raw = localStorage.getItem('ss_history');
+  if(!raw) return [];
+  try{ return JSON.parse(raw) || []; }catch{ return []; }
+})();
+
+function saveState(){ localStorage.setItem('ss_state', JSON.stringify(state)); }
+function saveHistory(){ localStorage.setItem('ss_history', JSON.stringify(history)); }
+
+/* ---------- Per-session set checkmarks ---------- */
+function progressKey(){ return `ss_progress_${state.session}`; }
+function loadProgress(){
+  const raw = localStorage.getItem(progressKey());
+  if(!raw) return { swings: Array(10).fill(false), getups: Array(10).fill(false) };
+  try{
+    const p = JSON.parse(raw) || {};
+    return {
+      swings: Array.isArray(p.swings) ? p.swings.slice(0,10).map(Boolean).concat(Array(10).fill(false)).slice(0,10) : Array(10).fill(false),
+      getups: Array.isArray(p.getups) ? p.getups.slice(0,10).map(Boolean).concat(Array(10).fill(false)).slice(0,10) : Array(10).fill(false)
+    };
+  }catch{
+    return { swings: Array(10).fill(false), getups: Array(10).fill(false) };
+  }
+}
+function saveProgress(p){
+  localStorage.setItem(progressKey(), JSON.stringify(p));
+}
+let progress = loadProgress();
+
+/* ---------- Wake Lock ---------- */
+let wakeLock = null;
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  }catch(e){ /* ignore */ }
+}
+async function releaseWakeLock(){
+  try{
+    if(wakeLock){ await wakeLock.release(); wakeLock=null; }
+  }catch(e){ /* ignore */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && (timerInterval || restTimeout)){
+    requestWakeLock();
+  } else {
+    releaseWakeLock();
+  }
+});
+
+/* ---------- Data ---------- */
+const SFG1 = [
+  {name:'Military Press', ladder:'1-2-3'},
+  {name:'Double Front Squat', ladder:'1-2-3'},
+  {name:'Snatch', ladder:'5-10-15'},
+  {name:'Double Clean', ladder:'2-4-6'}
 ];
-
-const SFG2=[
-{name:'Push Press / Push Jerk',ladder:'2-4-6'},
-{name:'Bent Press / Windmill',ladder:'1-2-3'},
-{name:'Clean / Snatch + Reverse Lunge',ladder:'1-2-3'},
-{name:'Bottom-Up Clean–Press–Squat',ladder:'1-1-1'}
+const SFG2 = [
+  {name:'Push Press / Push Jerk', ladder:'2-4-6'},
+  {name:'Bent Press / Windmill', ladder:'1-2-3'},
+  {name:'Clean/Snatch + Reverse Lunge', ladder:'1-2-3'},
+  {name:'Bottom-Up Clean–Press–Squat', ladder:'1-1-1'}
 ];
+const BELL_OPTIONS = [8,12,16,20,24,28,32,36,40,44,48,52,56];
 
-function init(){
-updatePhase();
-renderStatus();
-renderWarmup();
-renderSkill();
-renderSwings();
-renderGetUps();
+/* ---------- Helpers ---------- */
+function Splus(){ return state.S + 8; }
+function fmt(sec){
+  sec = Math.max(0, Math.floor(sec));
+  return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
+}
+function parseMMSS(txt){
+  const parts = String(txt).trim().split(':');
+  if(parts.length!==2) return 0;
+  const m = parseInt(parts[0],10) || 0;
+  const s = parseInt(parts[1],10) || 0;
+  return m*60+s;
 }
 
-function updatePhase(){
-if(state.phase==='auto'){
-state.currentPhase=state.S>=32?'post':'timeless';
-state.sessionsPerWeek=state.currentPhase==='post'?4:null;
+/* ---------- Phase logic ---------- */
+function computePhase(){
+  state.currentPhase = (state.phase === 'auto')
+    ? (state.S >= 32 ? 'post' : 'timeless')
+    : state.phase;
+
+  state.nominalSessionsPerWeek = (state.currentPhase === 'post')
+    ? (parseInt(state.postSessionsPerWeek,10) || 4)
+    : 6;
+
+  state.isTimedDay = (state.currentPhase === 'post' && state.timedEnabled)
+    ? ((state.session % state.nominalSessionsPerWeek) === (state.nominalSessionsPerWeek - 1))
+    : false;
 }
+
+function sessionsPerStep(){
+  // 4 weeks worth of sessions
+  return state.nominalSessionsPerWeek * 4;
+}
+
+/* ---------- SFG cycle ---------- */
+function sessionsPerSfgCycle(){
+  const w = Math.max(2, Math.min(4, parseInt(state.sfgCycleWeeks,10) || 2));
+  return w * state.nominalSessionsPerWeek;
+}
+function activeSfgSet(){
+  const cycleLen = sessionsPerSfgCycle();
+  const block = Math.floor(state.session / cycleLen);
+  return (block % 2 === 0) ? 'I' : 'II';
+}
+function currentSkill(){
+  const set = activeSfgSet();
+  const skills = (set === 'I') ? SFG1 : SFG2;
+  return skills[state.skillCycle % skills.length];
+}
+
+/* ---------- Step loading mapping ---------- */
+function isSwingStar(setNum){
+  if(state.step === 0) return false; // Baseline
+  const max = 2 * state.step + 2; // step1->4, step2->6, step3->8, step4->10
+  return (setNum >= 3 && setNum <= Math.min(10, max));
+}
+function isGetUpPairStar(pairIndex){
+  // 5 pairs, match swing expansion conceptually
+  // baseline: none
+  // step1: pairs 3-4
+  // step2: pairs 3-5
+  // step3: pairs 2-5
+  // step4: all
+  if(state.step === 0) return false;
+  if(state.step === 1) return (pairIndex === 3 || pairIndex === 4);
+  if(state.step === 2) return (pairIndex >= 3);
+  if(state.step === 3) return (pairIndex >= 2);
+  if(state.step === 4) return true;
+  return false;
+}
+
+/* ---------- UI rendering ---------- */
+
+function toggleSwingDone(idx, on){
+  progress.swings[idx] = !!on;
+  saveProgress(progress);
+  renderSwings();
+}
+function toggleGetUpDone(idx, on){
+  progress.getups[idx] = !!on;
+  saveProgress(progress);
+  renderGetUps();
+}
+function showTab(tab){
+  document.getElementById('todayTab').style.display = tab==='today' ? 'block' : 'none';
+  document.getElementById('historyTab').style.display = tab==='history' ? 'block' : 'none';
+  document.getElementById('settingsTab').style.display = tab==='settings' ? 'block' : 'none';
+  document.getElementById('tabToday').classList.toggle('active', tab==='today');
+  document.getElementById('tabHistory').classList.toggle('active', tab==='history');
+  document.getElementById('tabSettings').classList.toggle('active', tab==='settings');
 }
 
 function renderStatus(){
-document.getElementById('status').innerText=`Session ${state.session+1} · ${state.currentPhase==='post'?'Post-Simple':'Timeless'} · Step ${state.step}/5`;
+  computePhase();
+  const phaseName = state.currentPhase === 'post' ? 'Post-Simple' : 'Timeless';
+  const swingType = (((state.session + 1) % 3) === 0) ? 'Two-hand swings' : 'One-arm swings';
+  const timed = state.isTimedDay ? 'Timed day' : '';
+  const wave = state.wave ? 'Wave ON' : '';
+  const sfg = state.skillsEnabled ? `SFG ${activeSfgSet()}` : 'Skills OFF';
+
+  document.getElementById('status').innerText =
+    `Session ${state.session + 1} · ${phaseName} · ${state.step===0?'Baseline':'Step '+state.step+'/4'} · S ${state.S} kg`;
+
+  document.getElementById('status2').innerText =
+    [swingType, timed, sfg, wave].filter(Boolean).join(' · ');
 }
 
 function renderWarmup(){
-const list=document.getElementById('warmupList');
-list.innerHTML='';
-if(state.currentPhase==='post'){
-['Prying Goblet Squat','Arm Bar (L)','Goblet Squat @ S','Arm Bar (R)','Goblet Squat @ S'].forEach(x=>list.innerHTML+=`<div class="row">${x}</div>`);
-}else{
-['Prying Goblet Squat','Halo','Hip Bridge'].forEach(x=>list.innerHTML+=`<div class="row">${x}</div>`);
-}
+  const list = document.getElementById('warmupList');
+  list.innerHTML = '';
+  if(state.currentPhase === 'post'){
+    ['Prying Goblet Squat','Arm Bar (L)','Goblet Squat @ S','Arm Bar (R)','Goblet Squat @ S']
+      .forEach(x => list.innerHTML += `<div class="row"><span>${x}</span></div>`);
+  } else {
+    ['3 rounds:','5 Prying Goblet Squat','5+5 Halo','5 Hip Bridge']
+      .forEach(x => list.innerHTML += `<div class="row"><span>${x}</span></div>`);
+  }
 }
 
 function renderSkill(){
-const skills=state.skillSet==='I'?SFG1:SFG2;
-const s=skills[state.skillCycle%skills.length];
-document.getElementById('skillName').innerText=`${s.name}   ${s.ladder}`;
+  const el = document.getElementById('skillLine');
+  if(!state.skillsEnabled){
+    el.innerText = 'Skills disabled';
+    return;
+  }
+  const sk = currentSkill();
+  el.innerText = `${sk.name}  ·  ${sk.ladder}  ·  use S- weight`;
 }
+
 
 function renderSwings(){
-const div=document.getElementById('swingSets');
-div.innerHTML='';
-for(let i=1;i<=10;i++){
-let star=(state.step>1&&i>=3&&i<=(state.step*2))||state.step===5;
-div.innerHTML+=`<div class="set">${i} · ${state.S}kg ${star?'<span class="star">★</span>':''}</div>`;
+  const div = document.getElementById('swingSets');
+  div.innerHTML = '';
+  const sp = Splus();
+  for(let i=1;i<=10;i++){
+    const star = isSwingStar(i);
+    const w = star ? sp : state.S;
+    const idx = i-1;
+    const done = !!progress.swings[idx];
+    div.innerHTML += `
+      <label class="set ${done ? 'doneRow' : ''}">
+        <span>
+          <input type="checkbox" ${done ? 'checked' : ''} onchange="toggleSwingDone(${idx}, this.checked)" />
+          Set ${i}
+        </span>
+        <span>${w} kg ${star ? '<span class="star">★</span>' : ''}</span>
+      </label>`;
+  }
 }
-}
+
+
 
 function renderGetUps(){
-const div=document.getElementById('getupSets');
-div.innerHTML='';
-for(let i=1;i<=5;i++){
-let star=(state.step>1&&i>=2&&i<=state.step)||state.step===5;
-div.innerHTML+=`<div class="set">L${i} · ${state.S}kg ${star?'<span class="star">★</span>':''}</div>`;
-div.innerHTML+=`<div class="set">R${i} · ${state.S}kg ${star?'<span class="star">★</span>':''}</div>`;
-}
+  const div = document.getElementById('getupSets');
+  div.innerHTML = '';
+  const sp = Splus();
+
+  // 10 singles total: L1,R1,...,L5,R5
+  for(let i=1;i<=5;i++){
+    const star = isGetUpPairStar(i);
+    const w = star ? sp : state.S;
+
+    const leftIdx = (i-1)*2;
+    const rightIdx = (i-1)*2 + 1;
+
+    const leftDone = !!progress.getups[leftIdx];
+    const rightDone = !!progress.getups[rightIdx];
+
+    div.innerHTML += `
+      <label class="set ${leftDone ? 'doneRow' : ''}">
+        <span>
+          <input type="checkbox" ${leftDone ? 'checked' : ''} onchange="toggleGetUpDone(${leftIdx}, this.checked)" />
+          L${i}
+        </span>
+        <span>${w} kg ${star ? '<span class="star">★</span>' : ''}</span>
+      </label>`;
+
+    div.innerHTML += `
+      <label class="set ${rightDone ? 'doneRow' : ''}">
+        <span>
+          <input type="checkbox" ${rightDone ? 'checked' : ''} onchange="toggleGetUpDone(${rightIdx}, this.checked)" />
+          R${i}
+        </span>
+        <span>${w} kg ${star ? '<span class="star">★</span>' : ''}</span>
+      </label>`;
+  }
 }
 
-function nextBlock(id){
-document.querySelectorAll('.card').forEach(c=>c.style.display='none');
-document.getElementById(id).style.display='block';
+
+function renderHistory(){
+  const list = document.getElementById('historyList');
+  list.innerHTML = '';
+  if(history.length === 0){
+    list.innerHTML = '<div class="muted">No entries yet.</div>';
+    return;
+  }
+  for(const e of history){
+    const swings = fmt(e.swings || 0);
+    const getups = fmt(e.getups || 0);
+    const left = `${e.date} · #${e.session}`;
+    const right = `Swings ${swings} · Get-Ups ${getups}`;
+    list.innerHTML += `<div class="historyItem"><div class="left">${left}</div><div class="right">${right}</div></div>`;
+  }
 }
 
-let timerInterval;
-function startTimer(id,seconds){
-clearInterval(timerInterval);
-let t=seconds;
-timerInterval=setInterval(()=>{
-t--;
-document.getElementById(id+'Timer').innerText=`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
-if(t<=0)clearInterval(timerInterval);
-},1000);
+function renderSettings(){
+  // Bells
+  const bellSel = document.getElementById('bellSelect');
+  bellSel.innerHTML = '';
+  for(const b of BELL_OPTIONS){
+    const opt = document.createElement('option');
+    opt.value = String(b);
+    opt.textContent = `${b} kg`;
+    bellSel.appendChild(opt);
+  }
+  if(!BELL_OPTIONS.includes(state.S)) state.S = 24;
+  bellSel.value = String(state.S);
+
+  // Toggles/selects
+  document.getElementById('waveToggle').checked = !!state.wave;
+  document.getElementById('skillsToggle').checked = !!state.skillsEnabled;
+
+  const cycleSel = document.getElementById('cycleSelect');
+  cycleSel.value = String(state.sfgCycleWeeks || 2);
+
+  const postSel = document.getElementById('postFreqSelect');
+  postSel.value = String(state.postSessionsPerWeek || 4);
+
+  document.getElementById('timedToggle').checked = !!state.timedEnabled;
 }
 
-function startCountUp(id){
-clearInterval(timerInterval);
-let t=0;
-timerInterval=setInterval(()=>{
-t++;
-document.getElementById(id).innerText=`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
-},1000);
+/* ---------- Navigation between blocks ---------- */
+function hideAllBlocks(){
+  ['warmupCard','skillCard','swingsCard','restCard','getupsCard','cooldownCard'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+}
+function go(id){
+  hideAllBlocks();
+  // skillCard can be skipped automatically if disabled
+  if(id === 'skillCard' && !state.skillsEnabled){
+    id = 'swingsCard';
+  }
+  document.getElementById(id).style.display = 'block';
+  configureTimersForDay();
 }
 
+/* ---------- Timers ---------- */
+let timerInterval = null;
+let restTimeout = null;
+let swingSeconds = null;
+let getupSeconds = null;
+
+function stopTimer(){
+  if(timerInterval){ clearInterval(timerInterval); timerInterval = null; }
+}
+
+function startCountdown(elementId, totalSeconds){
+  stopTimer();
+  requestWakeLock();
+  let remaining = totalSeconds;
+  document.getElementById(elementId).innerText = fmt(remaining);
+  timerInterval = setInterval(()=>{
+    remaining--;
+    document.getElementById(elementId).innerText = fmt(remaining);
+    if(remaining <= 0){
+      stopTimer();
+    }
+  }, 1000);
+}
+
+function startCountUp(elementId){
+  stopTimer();
+  requestWakeLock();
+  let t = 0;
+  document.getElementById(elementId).innerText = fmt(t);
+  timerInterval = setInterval(()=>{
+    t++;
+    document.getElementById(elementId).innerText = fmt(t);
+  }, 1000);
+}
+
+function configureTimersForDay(){
+  // Only set defaults; do not override actively running timers
+  if(state.isTimedDay){
+    if(!timerInterval && document.getElementById('swingsCard').style.display !== 'none'){
+      document.getElementById('swingTimer').innerText = '5:00';
+    }
+    if(!timerInterval && document.getElementById('getupsCard').style.display !== 'none'){
+      document.getElementById('getupTimer').innerText = '10:00';
+    }
+  } else {
+    if(!timerInterval && document.getElementById('swingsCard').style.display !== 'none'){
+      document.getElementById('swingTimer').innerText = '0:00';
+    }
+    if(!timerInterval && document.getElementById('getupsCard').style.display !== 'none'){
+      document.getElementById('getupTimer').innerText = '0:00';
+    }
+  }
+}
+
+/* Skill timer */
+function startSkill(){ startCountdown('skillTimer', 300); }
+function finishSkill(){ stopTimer(); releaseWakeLock(); go('swingsCard'); }
+function skipSkill(){ stopTimer(); releaseWakeLock(); go('swingsCard'); }
+
+/* Swings timer */
+function startSwings(){
+  if(state.isTimedDay) startCountdown('swingTimer', 300);
+  else startCountUp('swingTimer');
+}
 function finishSwings(){
-clearInterval(timerInterval);
-if(state.currentPhase==='post'&&state.session%state.sessionsPerWeek===state.sessionsPerWeek-1){
-nextBlock('rest');
-startTimer('rest',60);
-setTimeout(()=>nextBlock('getups'),60000);
-}else{
-nextBlock('getups');
-}
+  if(state.isTimedDay){
+    const remaining = parseMMSS(document.getElementById('swingTimer').innerText);
+    swingSeconds = 300 - remaining;
+  } else {
+    swingSeconds = parseMMSS(document.getElementById('swingTimer').innerText);
+  }
+  stopTimer();
+
+  if(state.isTimedDay){
+    go('restCard');
+    // rest countdown + auto-advance
+    document.getElementById('restTimer').innerText = '1:00';
+    startCountdown('restTimer', 60);
+    if(restTimeout) clearTimeout(restTimeout);
+    restTimeout = setTimeout(()=>{
+      restTimeout = null;
+      go('getupsCard');
+    }, 60000);
+  } else {
+    releaseWakeLock();
+    go('getupsCard');
+  }
 }
 
+/* Get-ups timer */
+function startGetUps(){
+  if(state.isTimedDay) startCountdown('getupTimer', 600);
+  else startCountUp('getupTimer');
+}
 function finishGetUps(){
-clearInterval(timerInterval);
-nextBlock('cooldown');
+  if(state.isTimedDay){
+    const remaining = parseMMSS(document.getElementById('getupTimer').innerText);
+    getupSeconds = 600 - remaining;
+  } else {
+    getupSeconds = parseMMSS(document.getElementById('getupTimer').innerText);
+  }
+  stopTimer();
+  releaseWakeLock();
+  go('cooldownCard');
+}
+
+/* ---------- Progression / session finish ---------- */
+function promoteIncrement(){
+  return state.wave ? 4 : 8;
 }
 
 function finishSession(){
-state.session++;
-if(state.currentPhase==='post'&&state.session%16===0){state.step++;}
-if(state.step>5){
-state.step=1;
-state.S+=4;
-state.skillSet=state.skillSet==='I'?'II':'I';
-}
-state.skillCycle++;
-localStorage.setItem('ss_state',JSON.stringify(state));
-location.reload();
+  // Save history entry (times only)
+  const now = new Date();
+  history.unshift({
+    date: now.toISOString().slice(0,10),
+    session: state.session + 1,
+    swings: (typeof swingSeconds === 'number') ? swingSeconds : 0,
+    getups: (typeof getupSeconds === 'number') ? getupSeconds : 0
+  });
+  saveHistory();
+
+  // Advance session + step
+  state.session++;
+  // Load fresh checkmarks for the new session
+  progress = loadProgress();
+
+  const stepLen = sessionsPerStep();
+  if(state.session % stepLen === 0){
+    state.step++;
+    if(state.step > 4){
+      state.step = 0;
+      state.S += promoteIncrement();
+    }
+  }
+
+  // Skill rotation always advances per session (even if skipped)
+  state.skillCycle++;
+
+  // Reset transient timers for next session
+  swingSeconds = null; getupSeconds = null;
+  stopTimer(); releaseWakeLock();
+  if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
+
+  saveState();
+  location.reload();
 }
 
+function resetToWarmup(){
+  stopTimer(); releaseWakeLock();
+  if(restTimeout){ clearTimeout(restTimeout); restTimeout=null; }
+  swingSeconds = null; getupSeconds = null;
+  hideAllBlocks();
+  document.getElementById('warmupCard').style.display = 'block';
+}
+
+/* ---------- Settings actions ---------- */
+function setBell(val){
+  const n = parseInt(val,10);
+  if(!Number.isFinite(n)) return;
+  state.S = n;
+  saveState();
+  location.reload();
+}
+function setWave(on){
+  state.wave = !!on;
+  saveState();
+  renderStatus();
+}
+function setSkillsEnabled(on){
+  state.skillsEnabled = !!on;
+  saveState();
+  renderStatus();
+  renderSkill();
+}
+function setSfgCycleWeeks(val){
+  state.sfgCycleWeeks = parseInt(val,10) || 2;
+  saveState();
+  renderStatus();
+  renderSkill();
+}
+function setPostFreq(val){
+  state.postSessionsPerWeek = parseInt(val,10) || 4;
+  saveState();
+  location.reload();
+}
+function setTimedEnabled(on){
+  state.timedEnabled = !!on;
+  saveState();
+  location.reload();
+}
+
+function clearAllProgressKeys(){
+  const keys = [];
+  for(let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    if(k && k.startsWith('ss_progress_')) keys.push(k);
+  }
+  keys.forEach(k=>localStorage.removeItem(k));
+}
+
+function resetProgram(){
+  const ok = confirm('Reset session/step/skill cycle? (History stays)');
+  if(!ok) return;
+  clearAllProgressKeys();
+  const keep = { S: state.S, wave: state.wave, skillsEnabled: state.skillsEnabled, sfgCycleWeeks: state.sfgCycleWeeks, postSessionsPerWeek: state.postSessionsPerWeek, timedEnabled: state.timedEnabled };
+  state = {...structuredClone(DEFAULT_STATE), ...keep};
+  saveState();
+  location.reload();
+}
+
+function resetAll(){
+  const ok = confirm('Factory reset EVERYTHING including history?');
+  if(!ok) return;
+  clearAllProgressKeys();
+  localStorage.removeItem('ss_state');
+  localStorage.removeItem('ss_history');
+  location.reload();
+}
+
+/* ---------- History actions ---------- */
+function exportCSV(){
+  if(history.length === 0){ alert('No history to export.'); return; }
+  const header = ['date','session','swings_seconds','getups_seconds'];
+  const rows = history.map(e => [e.date,e.session,e.swings||0,e.getups||0]);
+  const csv = [header.join(','), ...rows.map(r=>r.join(','))].join('\\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'simple_and_sinister_history.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function clearHistory(){
+  const ok = confirm('Clear all history entries?');
+  if(!ok) return;
+  history = [];
+  saveHistory();
+  renderHistory();
+}
+
+/* ---------- Boot ---------- */
+function init(){
+  computePhase();
+  renderStatus();
+  renderWarmup();
+  renderSkill();
+  renderSwings();
+  renderGetUps();
+  renderHistory();
+  renderSettings();
+
+  // Start on warmup
+  hideAllBlocks();
+  document.getElementById('warmupCard').style.display = 'block';
+  configureTimersForDay();
+}
 init();
-</script>
 
+/* Cooldown timer (1:00 with beep) */
+let cooldownInterval = null;
+function beep(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = 880;
+    o.connect(g); g.connect(ctx.destination);
+    o.start();
+    g.gain.setValueAtTime(0.2, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+    o.stop(ctx.currentTime + 0.25);
+  }catch(e){}
+}
+function startCooldown(){
+  if(cooldownInterval){ clearInterval(cooldownInterval); }
+  let remaining = 60;
+  document.getElementById('cooldownTimer').innerText = '1:00';
+  cooldownInterval = setInterval(()=>{
+    remaining--;
+    document.getElementById('cooldownTimer').innerText = `${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}`;
+    if(remaining <= 0){
+      clearInterval(cooldownInterval);
+      cooldownInterval = null;
+      beep();
+    }
+  },1000);
+}
+
+</script>
 </body>
 </html>
