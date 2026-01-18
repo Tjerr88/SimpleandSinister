@@ -32,6 +32,15 @@
   .set.doneRow{opacity:.55;text-decoration:line-through}
   .set input[type="checkbox"]{margin-right:.6rem}
 
+  /* --- Cosmetic refinements (no logic changes) --- */
+  .set{padding:.22rem 0}
+  .set span{display:flex;align-items:center;gap:.4rem}
+  .set input[type="checkbox"]{margin-right:.35rem}
+  .star{font-size:.9em;opacity:.9}
+  .mini{color:var(--muted);font-size:.85rem}
+  .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.15rem .55rem;font-size:.82rem;color:var(--muted)}
+  .progressRow{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.25rem 0 .45rem 0}
+
   .star{color:#ffd43b}
   select{background:var(--btn);color:#fff;border:1px solid var(--btn);border-radius:10px;padding:.45rem .6rem;font-size:.95rem}
   input[type="checkbox"]{width:18px;height:18px}
@@ -79,6 +88,7 @@
   <div class="card" id="swingsCard" style="display:none">
     <h2>Swings</h2>
     <div class="timer" id="swingTimer">0:00</div>
+    <div class="progressRow"><span id="swingProgress" class="pill">Swings 0/10</span><span class="mini">Tap a row to check it off</span></div>
     <div id="swingSets"></div>
     <div class="hr"></div>
     <div class="row">
@@ -96,6 +106,7 @@
   <div class="card" id="getupsCard" style="display:none">
     <h2>Get-Ups</h2>
     <div class="timer" id="getupTimer">0:00</div>
+    <div class="progressRow"><span id="getupProgress" class="pill">Get-Ups 0/10</span><span class="mini">Tap a row to check it off</span></div>
     <div id="getupSets"></div>
     <div class="hr"></div>
     <div class="row">
@@ -106,12 +117,9 @@
 
   <div class="card" id="cooldownCard" style="display:none">
 
-    <div class="timer" id="cooldownTimer">1:00</div>
-    <div class="row">
-      <button onclick="startCooldown()">Start 1:00</button>
-    </div>
-
     <h2>Cool-down</h2>
+    <div class="timer" id="cooldownTimer">1:00</div>
+    <div class="row"><button onclick="startCooldown()">Start timer</button></div>
     <div class="row"><span>90/90 Stretch</span></div>
     <div class="row"><span>Straddle Stretch</span></div>
     <div class="hr"></div>
@@ -190,7 +198,20 @@
       </label>
     </div>
 
+    
     <div class="hr"></div>
+
+    <div class="row">
+      <span class="muted">Manual level-up</span>
+      <button id="manualLevelBtn" class="warn" onclick="manualLevelUp()">Advance 1 step</button>
+    </div>
+    <div class="muted" style="font-size:.85rem;margin-top:.4rem">
+      Advances exactly <b>one wave step</b> (Baseline → Step 1 → …).<br/>
+      • No weight increase<br/>
+      • Only available after 2 weeks<br/>
+      • Cooldown resets after use
+    </div>
+
 
     <div class="row">
       <button class="warn" onclick="resetProgram()">Reset program (keep history)</button>
@@ -218,7 +239,8 @@ const DEFAULT_STATE = {
   skillCycle: 0,
   sfgCycleWeeks: 2,
   postSessionsPerWeek: 4,
-  timedEnabled: true
+  timedEnabled: true,
+  lastManualLevelUpSession: null
 };
 
 let state = (() => {
@@ -299,6 +321,25 @@ const SFG2 = [
 const BELL_OPTIONS = [8,12,16,20,24,28,32,36,40,44,48,52,56];
 
 /* ---------- Helpers ---------- */
+
+function sessionsForTwoWeeks(){
+  return state.nominalSessionsPerWeek * 2;
+}
+function canManualLevelUp(){
+  if(state.step >= 4) return false;
+  const last = state.lastManualLevelUpSession;
+  if(last === null) return state.session >= sessionsForTwoWeeks();
+  return (state.session - last) >= sessionsForTwoWeeks();
+}
+function manualLevelUp(){
+  if(!canManualLevelUp()) return;
+  if(!confirm('Advance exactly ONE step in the current wave?\nNo weight increase. Cooldown resets.')) return;
+  state.step++;
+  state.lastManualLevelUpSession = state.session;
+  saveState();
+  location.reload();
+}
+
 function Splus(){ return state.S + 8; }
 function fmt(sec){
   sec = Math.max(0, Math.floor(sec));
@@ -376,6 +417,16 @@ function toggleSwingDone(idx, on){
   saveProgress(progress);
   renderSwings();
 }
+function rowToggle(kind, idx, ev){
+  // Make entire row tappable without changing training logic
+  if(ev && ev.target && ev.target.tagName && ev.target.tagName.toLowerCase() === 'input') return;
+  if(kind === 'swing'){
+    toggleSwingDone(idx, !progress.swings[idx]);
+  }else{
+    toggleGetUpDone(idx, !progress.getups[idx]);
+  }
+}
+
 function toggleGetUpDone(idx, on){
   progress.getups[idx] = !!on;
   saveProgress(progress);
@@ -399,10 +450,12 @@ function renderStatus(){
   const sfg = state.skillsEnabled ? `SFG ${activeSfgSet()}` : 'Skills OFF';
 
   document.getElementById('status').innerText =
-    `Session ${state.session + 1} · ${phaseName} · ${state.step===0?'Baseline':'Step '+state.step+'/4'} · S ${state.S} kg`;
+    `Session ${state.session + 1} · ${phaseName} · S ${state.S} kg`;
 
   document.getElementById('status2').innerText =
-    [swingType, timed, sfg, wave].filter(Boolean).join(' · ');
+    [`${state.step===0?'Baseline':'Step '+state.step+'/4'}`, swingType, timed, sfg, wave].filter(Boolean).join(' · ');
+
+  return;
 }
 
 function renderWarmup(){
@@ -412,7 +465,7 @@ function renderWarmup(){
     ['Prying Goblet Squat','Arm Bar (L)','Goblet Squat @ S','Arm Bar (R)','Goblet Squat @ S']
       .forEach(x => list.innerHTML += `<div class="row"><span>${x}</span></div>`);
   } else {
-    ['3 rounds:','5 Prying Goblet Squat','5+5 Halo','5 Hip Bridge']
+    ['3 rounds: 5 Prying Goblet Squat · 5+5 Halo · 5 Hip Bridge']
       .forEach(x => list.innerHTML += `<div class="row"><span>${x}</span></div>`);
   }
 }
@@ -428,25 +481,35 @@ function renderSkill(){
 }
 
 
+
 function renderSwings(){
   const div = document.getElementById('swingSets');
   div.innerHTML = '';
   const sp = Splus();
+  let doneCount = 0;
+
   for(let i=1;i<=10;i++){
     const star = isSwingStar(i);
     const w = star ? sp : state.S;
     const idx = i-1;
     const done = !!progress.swings[idx];
+    if(done) doneCount++;
+
     div.innerHTML += `
-      <label class="set ${done ? 'doneRow' : ''}">
+      <label class="set ${done ? 'doneRow' : ''}" onclick="rowToggle('swing', ${idx}, event)">
         <span>
-          <input type="checkbox" ${done ? 'checked' : ''} onchange="toggleSwingDone(${idx}, this.checked)" />
+          <input type="checkbox" ${done ? 'checked' : ''} onchange="toggleSwingDone(${idx}, this.checked)" onclick="event.stopPropagation()" />
           Set ${i}
         </span>
         <span>${w} kg ${star ? '<span class="star">★</span>' : ''}</span>
       </label>`;
   }
+
+  const p = document.getElementById('swingProgress');
+  if(p) p.textContent = `Swings ${doneCount}/10`;
 }
+
+
 
 
 
@@ -454,6 +517,7 @@ function renderGetUps(){
   const div = document.getElementById('getupSets');
   div.innerHTML = '';
   const sp = Splus();
+  let doneCount = 0;
 
   // 10 singles total: L1,R1,...,L5,R5
   for(let i=1;i<=5;i++){
@@ -465,26 +529,32 @@ function renderGetUps(){
 
     const leftDone = !!progress.getups[leftIdx];
     const rightDone = !!progress.getups[rightIdx];
+    if(leftDone) doneCount++;
+    if(rightDone) doneCount++;
 
     div.innerHTML += `
-      <label class="set ${leftDone ? 'doneRow' : ''}">
+      <label class="set ${leftDone ? 'doneRow' : ''}" onclick="rowToggle('getup', ${leftIdx}, event)">
         <span>
-          <input type="checkbox" ${leftDone ? 'checked' : ''} onchange="toggleGetUpDone(${leftIdx}, this.checked)" />
+          <input type="checkbox" ${leftDone ? 'checked' : ''} onchange="toggleGetUpDone(${leftIdx}, this.checked)" onclick="event.stopPropagation()" />
           L${i}
         </span>
         <span>${w} kg ${star ? '<span class="star">★</span>' : ''}</span>
       </label>`;
 
     div.innerHTML += `
-      <label class="set ${rightDone ? 'doneRow' : ''}">
+      <label class="set ${rightDone ? 'doneRow' : ''}" onclick="rowToggle('getup', ${rightIdx}, event)">
         <span>
-          <input type="checkbox" ${rightDone ? 'checked' : ''} onchange="toggleGetUpDone(${rightIdx}, this.checked)" />
+          <input type="checkbox" ${rightDone ? 'checked' : ''} onchange="toggleGetUpDone(${rightIdx}, this.checked)" onclick="event.stopPropagation()" />
           R${i}
         </span>
         <span>${w} kg ${star ? '<span class="star">★</span>' : ''}</span>
       </label>`;
   }
+
+  const p = document.getElementById('getupProgress');
+  if(p) p.textContent = `Get-Ups ${doneCount}/10`;
 }
+
 
 
 function renderHistory(){
@@ -527,6 +597,15 @@ function renderSettings(){
   postSel.value = String(state.postSessionsPerWeek || 4);
 
   document.getElementById('timedToggle').checked = !!state.timedEnabled;
+
+  const btn = document.getElementById('manualLevelBtn');
+  if(btn){
+    const ok = canManualLevelUp();
+    btn.disabled = !ok;
+    btn.classList.toggle('primary', ok);
+    btn.classList.toggle('ghost', !ok);
+    btn.style.opacity = ok ? '1' : '.55';
+  }
 }
 
 /* ---------- Navigation between blocks ---------- */
