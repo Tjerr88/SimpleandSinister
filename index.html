@@ -72,9 +72,28 @@
     <div id="warmupList"></div>
     <div class="hr"></div>
     <button class="primary" onclick="go('skillCard')">Warm-up done</button>
+    <div class="row" style="margin-top:.6rem">
+      <button class="ghost" onclick="startRecoveryFromWarmup()">Dragging your tail?</button>
+      <span class="mini">Recovery swings only</span>
+    </div>
   </div>
 
-  <div class="card" id="skillCard" style="display:none">
+  
+  <div class="card" id="recoveryCard" style="display:none">
+    <h2>Recovery Swings</h2>
+    <div class="muted">
+      Low energy day: do <b>two-hand swings</b> with an <b>active negative</b> (overspeeded eccentric).<br/>
+      2–4 sets · 5–10 reps · full rest · stop before fatigue.<br/>
+      <span class="mini">This does <b>not</b> count as a session and does not change progression.</span>
+    </div>
+    <div class="hr"></div>
+    <div class="row">
+      <button class="primary" onclick="finishRecovery()">Done</button>
+      <button class="ghost" onclick="cancelRecovery()">Back</button>
+    </div>
+  </div>
+
+<div class="card" id="skillCard" style="display:none">
     <h2>Skill</h2>
     <div id="skillLine" class="muted"></div>
     <div class="timer" id="skillTimer">5:00</div>
@@ -222,7 +241,17 @@
       • No weight increase<br/>
       • Only available after 2 weeks<br/>
       • Cooldown resets after use
+    
+    <div class="row">
+      <span class="muted">Manual step-back</span>
+      <button id="manualStepBackBtn" class="warn" onclick="manualStepBack()">Back 1 step</button>
     </div>
+    <div class="muted" style="font-size:.85rem;margin-top:.4rem">
+      Moves back exactly <b>one step</b> (Step 3 → 2, etc.).<br/>
+      If you are at Baseline (Step 0), it returns to <b>Step 4</b> of the previous bell.
+    </div>
+
+</div>
 
 
     <div class="row">
@@ -352,6 +381,31 @@ function manualLevelUp(){
   saveState();
   location.reload();
 }
+
+function canManualStepBack(){
+  if(state.step > 0) return true;
+  const dec = promoteIncrement(); // 4 if wave, else 8
+  const minBell = Math.min(...BELL_OPTIONS);
+  return (state.S - dec) >= minBell;
+}
+function manualStepBack(){
+  if(!canManualStepBack()) return;
+  const dec = promoteIncrement();
+  const msg = (state.step > 0)
+    ? `Go back 1 step? (Step ${state.step} → Step ${state.step - 1})\n\nSession count stays the same.`
+    : `You are at Baseline (Step 0).\nGo back to previous bell?\n\nS ${state.S} → ${state.S - dec} kg and Step 4.\nSession count stays the same.`;
+  if(!confirm(msg)) return;
+
+  if(state.step > 0){
+    state.step--;
+  } else {
+    state.S = state.S - dec;
+    state.step = 4;
+  }
+  saveState();
+  location.reload();
+}
+
 
 function Splus(){ return state.S + 8; }
 function fmt(sec){
@@ -644,11 +698,21 @@ function renderSettings(){
     btn.classList.toggle('ghost', !ok);
     btn.style.opacity = ok ? '1' : '.55';
   }
+
+  const backBtn = document.getElementById('manualStepBackBtn');
+  if(backBtn){
+    const okBack = canManualStepBack();
+    backBtn.disabled = !okBack;
+    backBtn.classList.toggle('primary', okBack);
+    backBtn.classList.toggle('ghost', !okBack);
+    backBtn.style.opacity = okBack ? '1' : '.55';
+  }
+
 }
 
 /* ---------- Navigation between blocks ---------- */
 function hideAllBlocks(){
-  ['warmupCard','skillCard','swingsCard','restCard','getupsCard','cooldownCard'].forEach(id=>{
+  ['warmupCard','recoveryCard','skillCard','swingsCard','restCard','getupsCard','cooldownCard'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -663,6 +727,71 @@ function go(id){
   configureTimersForDay();
 }
 
+
+/* ================== REALTIME PERSISTENT TIMERS ================== */
+const TIMER_KEY = "ss_timers_v1";
+
+function loadTimers(){
+  try{ return JSON.parse(localStorage.getItem(TIMER_KEY) || "{}"); }
+  catch{ return {}; }
+}
+function saveTimers(t){ localStorage.setItem(TIMER_KEY, JSON.stringify(t)); }
+function setTimer(name, data){
+  const t = loadTimers(); t[name] = data; saveTimers(t);
+}
+function getTimer(name){
+  const t = loadTimers(); return t[name] || null;
+}
+function clearTimer(name){
+  const t = loadTimers(); delete t[name]; saveTimers(t);
+}
+
+function realtimeCountdown(name, elementId, seconds, onDone){
+  requestWakeLock();
+  const endAt = Date.now() + seconds*1000;
+  setTimer(name, {type:"down", endAt, elementId, done:false});
+
+  if(timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(()=>{
+    const t = getTimer(name);
+    if(!t) return;
+    const remaining = Math.max(0, Math.ceil((t.endAt - Date.now())/1000));
+    document.getElementById(elementId).innerText = fmt(remaining);
+    if(remaining <= 0 && !t.done){
+      t.done = true; setTimer(name, t);
+      clearInterval(timerInterval); timerInterval = null;
+      beep();
+      onDone && onDone();
+    }
+  },200);
+}
+
+function realtimeCountUp(name, elementId){
+  requestWakeLock();
+  const startAt = Date.now();
+  setTimer(name, {type:"up", startAt, elementId});
+
+  if(timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(()=>{
+    const t = getTimer(name);
+    if(!t) return;
+    const elapsed = Math.floor((Date.now()-t.startAt)/1000);
+    document.getElementById(elementId).innerText = fmt(elapsed);
+  },200);
+}
+
+function restoreTimer(name){
+  const t = getTimer(name);
+  if(!t) return;
+  if(t.type === "down"){
+    realtimeCountdown(name, t.elementId, Math.max(0, Math.ceil((t.endAt-Date.now())/1000)));
+  }
+  if(t.type === "up"){
+    realtimeCountUp(name, t.elementId);
+  }
+}
+/* =============================================================== */
+
 /* ---------- Timers ---------- */
 let timerInterval = null;
 let restTimeout = null;
@@ -673,7 +802,8 @@ function stopTimer(){
   if(timerInterval){ clearInterval(timerInterval); timerInterval = null; }
 }
 
-function startCountdown(elementId, totalSeconds){
+function startCountdown(elementId, totalSeconds){ realtimeCountdown(elementId, elementId, totalSeconds); return; }
+function __old_startCountdown(elementId, totalSeconds){
   stopTimer();
   requestWakeLock();
   let remaining = totalSeconds;
@@ -687,7 +817,8 @@ function startCountdown(elementId, totalSeconds){
   }, 1000);
 }
 
-function startCountUp(elementId){
+function startCountUp(elementId){ realtimeCountUp(elementId, elementId); return; }
+function __old_startCountUp(elementId){
   stopTimer();
   requestWakeLock();
   let t = 0;
@@ -721,6 +852,27 @@ function configureTimersForDay(){
 function startSkill(){ startCountdown('skillTimer', 300); }
 function finishSkill(){ stopTimer(); releaseWakeLock(); go('swingsCard'); }
 function skipSkill(){ stopTimer(); releaseWakeLock(); go('swingsCard'); }
+
+/* ---------- Recovery (Dragging your tail) ---------- */
+function startRecoveryFromWarmup(){
+  // Decide after moving a bit (warm-up). No session/progression changes.
+  stopTimer(); releaseWakeLock();
+  if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
+  hideAllBlocks();
+  document.getElementById('recoveryCard').style.display = 'block';
+}
+function cancelRecovery(){
+  hideAllBlocks();
+  document.getElementById('warmupCard').style.display = 'block';
+}
+function finishRecovery(){
+  // Intentionally does NOT log history and does NOT advance session/step.
+  stopTimer(); releaseWakeLock();
+  if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
+  hideAllBlocks();
+  document.getElementById('warmupCard').style.display = 'block';
+}
+
 
 /* Swings timer */
 function startSwings(){
