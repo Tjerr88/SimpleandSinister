@@ -143,7 +143,7 @@
     <div class="row"><span>Straddle Stretch</span></div>
     <div class="hr"></div>
     <div class="row">
-      <button class="primary" onclick="finishSession()">Finish Session</button>
+      <button class="ghost" onclick="finishSession()">Finish Session</button>
       <button class="ghost" onclick="resetToWarmup()">Back to top</button>
     </div>
   </div>
@@ -229,6 +229,18 @@
       </label>
     </div>
 
+    <div class="hr"></div>
+
+    <div class="row">
+      <span class="muted">Re-entry (full ladder)</span>
+      <button id="reEntryBtn" class="warn" onclick="activateReEntry()">Start re-entry</button>
+      <button id="reEntryCancelBtn" class="ghost" onclick="cancelReEntry()" style="display:none">Stop</button>
+    </div>
+    <div class="muted" style="font-size:.85rem;margin-top:.4rem">
+      4× −16 kg, 4× −8 kg, daarna 4 sessies per Step (0 → jouw huidige step).<br/>
+      Progressie pauzeert tijdelijk en hervat automatisch.
+    </div>
+
     
     <div class="hr"></div>
 
@@ -282,6 +294,11 @@ const DEFAULT_STATE = {
   postSessionsPerWeek: 4,
   timedEnabled: true,
   lastManualLevelUpSession: null,
+  // Re-entry (full ladder) override
+  reEntryActive: false,
+  reEntryBaseS: null,
+  reEntryBaseStep: null,
+  reEntryIndex: 0,
   skillMode: 'alt' // 'sfg1' | 'sfg2' | 'alt'
 };
 
@@ -364,6 +381,74 @@ const BELL_OPTIONS = [8,12,16,20,24,28,32,36,40,44,48,52,56];
 
 /* ---------- Helpers ---------- */
 
+function getEffectiveParams(){
+  // Default: no override
+  const baseS = state.S;
+  const baseStep = state.step;
+
+  if(!state.reEntryActive){
+    return { S: baseS, step: baseStep, label: null, stage: null, stagePos: null, total: null };
+  }
+
+  const minBell = Math.min(...BELL_OPTIONS);
+  const clampBell = (x)=> Math.max(minBell, x);
+
+  const bS = (Number.isFinite(state.reEntryBaseS) ? state.reEntryBaseS : baseS);
+  const bStep = (Number.isFinite(state.reEntryBaseStep) ? state.reEntryBaseStep : baseStep);
+  const idx = Math.max(0, parseInt(state.reEntryIndex,10) || 0);
+
+  // Total sessions: 4x(-16) + 4x(-8) + 4x per step from 0..bStep
+  const total = 8 + 4 * (bStep + 1);
+
+  if(idx < 4){
+    return { S: clampBell(bS - 16), step: 0, label: '−16 kg', stage: 'minus16', stagePos: `${idx+1}/4`, total };
+  }
+  if(idx < 8){
+    return { S: clampBell(bS - 8), step: 0, label: '−8 kg', stage: 'minus8', stagePos: `${(idx-4)+1}/4`, total };
+  }
+
+  const j = idx - 8;
+  const stepLevel = Math.min(bStep, Math.floor(j / 4)); // 0..bStep
+  const pos = (j % 4) + 1;
+  return { S: bS, step: stepLevel, label: `Step ${stepLevel}`, stage: 'step', stagePos: `${pos}/4`, total };
+}
+
+function reEntryTotalSessions(){
+  const bStep = Number.isFinite(state.reEntryBaseStep) ? state.reEntryBaseStep : state.step;
+  return 8 + 4 * (bStep + 1);
+}
+
+function activateReEntry(){
+  const msg =
+    'Re-entry (full ladder) starten?\n\n' +
+    'Dit doet (4 sessies per trede):\n' +
+    '• −16 kg (4x)\n' +
+    '• −8 kg (4x)\n' +
+    '• Step 0 → jouw huidige step (elk 4x)\n\n' +
+    'Tijdens Re-entry pauzeert step/gewicht-progressie.\n' +
+    'Daarna ga je automatisch verder waar je was.';
+  if(!confirm(msg)) return;
+
+  state.reEntryActive = true;
+  state.reEntryBaseS = state.S;
+  state.reEntryBaseStep = state.step;
+  state.reEntryIndex = 0;
+  saveState();
+  location.reload();
+}
+
+function cancelReEntry(){
+  if(!confirm('Re-entry stoppen en direct terug naar je normale step?')) return;
+  // Return to frozen base if available; otherwise keep current
+  if(Number.isFinite(state.reEntryBaseS)) state.S = state.reEntryBaseS;
+  if(Number.isFinite(state.reEntryBaseStep)) state.step = state.reEntryBaseStep;
+  state.reEntryActive = false;
+  state.reEntryIndex = 0;
+  saveState();
+  location.reload();
+}
+
+
 function sessionsForTwoWeeks(){
   return state.nominalSessionsPerWeek * 2;
 }
@@ -407,7 +492,7 @@ function manualStepBack(){
 }
 
 
-function Splus(){ return state.S + 8; }
+function Splus(){ return getEffectiveParams().S + 8; }
 function fmt(sec){
   sec = Math.max(0, Math.floor(sec));
   return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
@@ -422,8 +507,10 @@ function parseMMSS(txt){
 
 /* ---------- Phase logic ---------- */
 function computePhase(){
+  const eff = getEffectiveParams();
+
   state.currentPhase = (state.phase === 'auto')
-    ? (state.S >= 32 ? 'post' : 'timeless')
+    ? (eff.S >= 32 ? 'post' : 'timeless')
     : state.phase;
 
   state.nominalSessionsPerWeek = (state.currentPhase === 'post')
@@ -473,8 +560,9 @@ function currentSkill(){
 
 /* ---------- Step loading mapping ---------- */
 function isSwingStar(setNum){
-  if(state.step === 0) return false; // Baseline
-  const max = 2 * state.step + 2; // step1->4, step2->6, step3->8, step4->10
+  const effStep = getEffectiveParams().step;
+  if(effStep === 0) return false; // Baseline
+  const max = 2 * effStep + 2; // step1->4, step2->6, step3->8, step4->10
   return (setNum >= 3 && setNum <= Math.min(10, max));
 }
 function isGetUpPairStar(pairIndex){
@@ -484,11 +572,12 @@ function isGetUpPairStar(pairIndex){
   // step2: pairs 3-5
   // step3: pairs 2-5
   // step4: all
-  if(state.step === 0) return false;
-  if(state.step === 1) return (pairIndex === 3 || pairIndex === 4);
-  if(state.step === 2) return (pairIndex >= 3);
-  if(state.step === 3) return (pairIndex >= 2);
-  if(state.step === 4) return true;
+  const effStep = getEffectiveParams().step;
+  if(effStep === 0) return false;
+  if(effStep === 1) return (pairIndex === 3 || pairIndex === 4);
+  if(effStep === 2) return (pairIndex >= 3);
+  if(effStep === 3) return (pairIndex >= 2);
+  if(effStep === 4) return true;
   return false;
 }
 
@@ -530,12 +619,16 @@ function renderStatus(){
   const timed = state.isTimedDay ? 'Timed day' : '';
   const wave = state.wave ? 'Wave ON' : '';
   const sfg = skillsStatusLabel();
+  const re = getEffectiveParams();
+  const reEntryTag = state.reEntryActive ? `Re-entry ${re.label} (${re.stagePos})` : '';
+
+  const eff = getEffectiveParams();
 
   document.getElementById('status').innerText =
-    `Session ${state.session + 1} · ${phaseName} · S ${state.S} kg`;
+    `Session ${state.session + 1} · ${phaseName} · S ${eff.S} kg`;
 
   document.getElementById('status2').innerText =
-    [`${state.step===0?'Baseline':'Step '+state.step+'/4'}`, swingType, timed, sfg, wave].filter(Boolean).join(' · ');
+    [`${(getEffectiveParams().step===0)?'Baseline':'Step '+getEffectiveParams().step+'/4'}`, swingType, timed, sfg, reEntryTag, wave].filter(Boolean).join(' · ');
 
   return;
 }
@@ -565,6 +658,7 @@ function renderSkill(){
 
 
 function renderSwings(){
+  const eff = getEffectiveParams();
   const div = document.getElementById('swingSets');
   div.innerHTML = '';
   const sp = Splus();
@@ -572,7 +666,7 @@ function renderSwings(){
 
   for(let i=1;i<=10;i++){
     const star = isSwingStar(i);
-    const w = star ? sp : state.S;
+    const w = star ? sp : eff.S;
     const idx = i-1;
     const done = !!progress.swings[idx];
     if(done) doneCount++;
@@ -596,6 +690,7 @@ function renderSwings(){
 
 
 function renderGetUps(){
+  const eff = getEffectiveParams();
   const div = document.getElementById('getupSets');
   div.innerHTML = '';
   const sp = Splus();
@@ -604,7 +699,7 @@ function renderGetUps(){
   // 10 singles total: L1,R1,...,L5,R5
   for(let i=1;i<=5;i++){
     const star = isGetUpPairStar(i);
-    const w = star ? sp : state.S;
+    const w = star ? sp : eff.S;
 
     const leftIdx = (i-1)*2;
     const rightIdx = (i-1)*2 + 1;
@@ -708,6 +803,15 @@ function renderSettings(){
     backBtn.style.opacity = okBack ? '1' : '.55';
   }
 
+
+  // Re-entry buttons
+  const reBtn = document.getElementById('reEntryBtn');
+  const reStop = document.getElementById('reEntryCancelBtn');
+  if(reBtn && reStop){
+    const active = !!state.reEntryActive;
+    reBtn.style.display = active ? 'none' : 'inline-block';
+    reStop.style.display = active ? 'inline-block' : 'none';
+  }
 }
 
 /* ---------- Navigation between blocks ---------- */
@@ -927,6 +1031,7 @@ function promoteIncrement(){
 }
 
 function finishSession(){
+  if(!confirm('Session afronden? Dit kan niet ongedaan worden gemaakt.')) return;
   // Save history entry (times only)
   const now = new Date();
   history.unshift({
@@ -937,17 +1042,31 @@ function finishSession(){
   });
   saveHistory();
 
-  // Advance session + step
+  // Advance session (always)
   state.session++;
   // Load fresh checkmarks for the new session
   progress = loadProgress();
 
-  const stepLen = sessionsPerStep();
-  if(state.session % stepLen === 0){
-    state.step++;
-    if(state.step > 4){
-      state.step = 0;
-      state.S += promoteIncrement();
+  // Re-entry: pause step/weight progression, only advance the re-entry ladder
+  if(state.reEntryActive){
+    state.reEntryIndex = (parseInt(state.reEntryIndex,10) || 0) + 1;
+
+    const total = reEntryTotalSessions();
+    if(state.reEntryIndex >= total){
+      // Resume exactly where you were when you started re-entry
+      if(Number.isFinite(state.reEntryBaseS)) state.S = state.reEntryBaseS;
+      if(Number.isFinite(state.reEntryBaseStep)) state.step = state.reEntryBaseStep;
+      state.reEntryActive = false;
+      state.reEntryIndex = 0;
+    }
+  } else {
+    const stepLen = sessionsPerStep();
+    if(state.session % stepLen === 0){
+      state.step++;
+      if(state.step > 4){
+        state.step = 0;
+        state.S += promoteIncrement();
+      }
     }
   }
 
