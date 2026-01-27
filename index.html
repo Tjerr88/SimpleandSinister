@@ -48,6 +48,17 @@
   .historyItem .left{white-space:nowrap}
   .historyItem .right{margin-left:auto;white-space:nowrap}
   footer{padding:1rem;text-align:center;font-size:.8rem;color:#777}
+
+  /* --- Timer button UX --- */
+  button.timerAction{background:var(--warn);color:#111;font-weight:700}
+  .btnRow{display:flex;gap:.75rem;flex-wrap:wrap}
+  .btnRow button{flex:1;min-width:140px;padding:.85rem 1rem;border-radius:14px}
+  .btnRow button.ghost{flex:0 0 auto;min-width:110px;padding:.7rem .9rem;opacity:.9}
+  @media (max-width:420px){
+    .btnRow button{min-width:100%}
+    .btnRow button.ghost{min-width:100%}
+  }
+
 </style>
 </head>
 <body>
@@ -71,7 +82,7 @@
     <h2>Warm-up</h2>
     <div id="warmupList"></div>
     <div class="hr"></div>
-    <button class="primary" onclick="go('skillCard')">Warm-up done</button>
+    <button class="primary" onclick="go(state.preSimple ? 'swingsCard' : 'skillCard')">Warm-up done</button>
     <div class="row" style="margin-top:.6rem">
       <button class="ghost" onclick="startRecoveryFromWarmup()">Dragging your tail?</button>
       <span class="mini">Recovery swings only</span>
@@ -97,8 +108,8 @@
     <h2>Skill</h2>
     <div id="skillLine" class="muted"></div>
     <div class="timer" id="skillTimer">5:00</div>
-    <div class="row">
-      <button onclick="startSkill()">Start</button>
+    <div class="row btnRow">
+      <button class="timerAction" onclick="startSkill()">Start</button>
       <button class="done" onclick="finishSkill()">Finish</button>
       <button class="ghost" onclick="skipSkill()">Skip</button>
     </div>
@@ -110,8 +121,8 @@
     <div class="progressRow"><span id="swingProgress" class="pill">Swings 0/10</span><span class="mini">Tap a row to check it off</span></div>
     <div id="swingSets"></div>
     <div class="hr"></div>
-    <div class="row">
-      <button onclick="startSwings()">Start</button>
+    <div class="row btnRow">
+      <button class="timerAction" onclick="startSwings()">Start</button>
       <button class="done" onclick="finishSwings()">Finish Swings</button>
     </div>
   </div>
@@ -128,8 +139,8 @@
     <div class="progressRow"><span id="getupProgress" class="pill">Get-Ups 0/10</span><span class="mini">Tap a row to check it off</span></div>
     <div id="getupSets"></div>
     <div class="hr"></div>
-    <div class="row">
-      <button onclick="startGetUps()">Start</button>
+    <div class="row btnRow">
+      <button class="timerAction" onclick="startGetUps()">Start</button>
       <button class="done" onclick="finishGetUps()">Finish Get-Ups</button>
     </div>
   </div>
@@ -138,12 +149,14 @@
 
     <h2>Cool-down</h2>
     <div class="timer" id="cooldownTimer">1:00</div>
-    <div class="row"><button onclick="startCooldown()">Start timer</button></div>
+    <div class="row btnRow"><button class="timerAction" onclick="startCooldown()">Start timer</button></div>
+    <div id="cooldownExtras">
     <div class="row"><span>90/90 Stretch</span></div>
     <div class="row"><span>Straddle Stretch</span></div>
+    </div>
     <div class="hr"></div>
     <div class="row">
-      <button class="ghost" onclick="finishSession()">Finish Session</button>
+      <button class="ghost" onclick="finishSessionOrPractice()">Finish Session</button>
       <button class="ghost" onclick="resetToWarmup()">Back to top</button>
     </div>
   </div>
@@ -173,10 +186,27 @@
     </div>
 
     <div class="row">
-      <span class="muted">Wave mode</span>
+      <span class="muted">Wave Mode</span>
       <label class="row" style="gap:.5rem;justify-content:flex-end;margin:0">
-        <input id="waveToggle" type="checkbox" onchange="setWave(this.checked)" />
-        <span class="muted">+4 kg between cycles</span>
+        <input id="waveToggle" type="checkbox" onchange="setWaveMode(this.checked)" />
+        <span class="muted">Bell jumps are +4 kg (instead of +8). S+ stays +8.</span>
+      </label>
+    </div>
+
+    
+    <div class="row">
+      <span class="muted">Pre-Simple (On-Ramp)</span>
+      <label class="row" style="gap:.5rem;justify-content:flex-end;margin:0">
+        <input id="preSimpleToggle" type="checkbox" onchange="setPreSimple(this.checked)" />
+        <span class="muted">Warm-up + 15 min swings + 15 min get-ups. No progression, no history.</span>
+      </label>
+    </div>
+
+<div class="row">
+      <span class="muted">Half Mode</span>
+      <label class="row" style="gap:.5rem;justify-content:flex-end;margin:0">
+        <input id="halfToggle" type="checkbox" onchange="setHalfMode(this.checked)" />
+        <span class="muted">Every 2 weeks: +1 step. S+ is +4 kg.</span>
       </label>
     </div>
 
@@ -237,7 +267,7 @@
       <button id="reEntryCancelBtn" class="ghost" onclick="cancelReEntry()" style="display:none">Stop</button>
     </div>
     <div class="muted" style="font-size:.85rem;margin-top:.4rem">
-      4× −16 kg, 4× −8 kg, daarna 4 sessies per Step (0 → jouw huidige step).<br/>
+      4× −16 kg, 4× −8 kg, daarna 4 sessies per Step (0 → your current step).<br/>
       Progressie pauzeert tijdelijk en hervat automatisch.
     </div>
 
@@ -287,7 +317,9 @@ const DEFAULT_STATE = {
   S: 24,
   step: 0,
   phase: 'auto',
-  wave: false,
+  waveMode: false,
+  halfMode: false,
+  preSimple: false,
   skillsEnabled: true,
   skillCycle: 0,
   sfgCycleWeeks: 2,
@@ -420,13 +452,13 @@ function reEntryTotalSessions(){
 
 function activateReEntry(){
   const msg =
-    'Re-entry (full ladder) starten?\n\n' +
-    'Dit doet (4 sessies per trede):\n' +
+    'Start re-entry (full ladder)?\n\n' +
+    'This runs (4 sessions per rung):\n' +
     '• −16 kg (4x)\n' +
     '• −8 kg (4x)\n' +
-    '• Step 0 → jouw huidige step (elk 4x)\n\n' +
-    'Tijdens Re-entry pauzeert step/gewicht-progressie.\n' +
-    'Daarna ga je automatisch verder waar je was.';
+    '• Step 0 → your current step (4x each)\n\n' +
+    'During re-entry, step and weight progression are paused.\n' +
+    'After that, you automatically resume where you left off.';
   if(!confirm(msg)) return;
 
   state.reEntryActive = true;
@@ -438,7 +470,7 @@ function activateReEntry(){
 }
 
 function cancelReEntry(){
-  if(!confirm('Re-entry stoppen en direct terug naar je normale step?')) return;
+  if(!confirm('Stop re-entry and return to your normal step?')) return;
   // Return to frozen base if available; otherwise keep current
   if(Number.isFinite(state.reEntryBaseS)) state.S = state.reEntryBaseS;
   if(Number.isFinite(state.reEntryBaseStep)) state.step = state.reEntryBaseStep;
@@ -492,7 +524,8 @@ function manualStepBack(){
 }
 
 
-function Splus(){ return getEffectiveParams().S + 8; }
+function sPlusOffset(){ return state.halfMode ? 4 : 8; }
+function Splus(){ return getEffectiveParams().S + sPlusOffset(); }
 function fmt(sec){
   sec = Math.max(0, Math.floor(sec));
   return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
@@ -523,8 +556,9 @@ function computePhase(){
 }
 
 function sessionsPerStep(){
-  // 4 weeks worth of sessions
-  return state.nominalSessionsPerWeek * 4;
+  // Default: 4 weeks per step (classic S&S)
+  // Half Mode: 2 weeks per step
+  return state.nominalSessionsPerWeek * (state.halfMode ? 2 : 4);
 }
 
 /* ---------- SFG cycle ---------- */
@@ -617,7 +651,7 @@ function renderStatus(){
   const phaseName = state.currentPhase === 'post' ? 'Post-Simple' : 'Timeless';
   const swingType = (((state.session + 1) % 3) === 0) ? 'Two-hand swings' : 'One-arm swings';
   const timed = state.isTimedDay ? 'Timed day' : '';
-  const wave = state.wave ? 'Wave ON' : '';
+  const wave = state.preSimple ? 'Pre-Simple' : (state.waveMode ? 'Wave Mode' : (state.halfMode ? 'Half Mode' : ''));
   const sfg = skillsStatusLabel();
   const re = getEffectiveParams();
   const reEntryTag = state.reEntryActive ? `Re-entry ${re.label} (${re.stagePos})` : '';
@@ -647,6 +681,10 @@ function renderWarmup(){
 
 function renderSkill(){
   const el = document.getElementById('skillLine');
+  if(state.preSimple){
+    el.innerText = 'Pre-Simple: no skills block';
+    return;
+  }
   if(!state.skillsEnabled){
     el.innerText = 'Skills disabled';
     return;
@@ -661,6 +699,15 @@ function renderSwings(){
   const eff = getEffectiveParams();
   const div = document.getElementById('swingSets');
   div.innerHTML = '';
+
+  // Pre-Simple: 15 minutes quality practice, no checkboxes
+  if(state.preSimple){
+    const p = document.getElementById('swingProgress');
+    if(p) p.style.display = 'none';
+    div.innerHTML = `<div class="muted">15 minutes of <b>quality swings</b>. Stop the set when speed or crispness drops. Rest as needed.</div>`;
+    return;
+  }
+
   const sp = Splus();
   let doneCount = 0;
 
@@ -682,7 +729,7 @@ function renderSwings(){
   }
 
   const p = document.getElementById('swingProgress');
-  if(p) p.textContent = `Swings ${doneCount}/10`;
+  if(p){ p.style.display='inline-block'; p.textContent = `Swings ${doneCount}/10`; }
 }
 
 
@@ -693,6 +740,15 @@ function renderGetUps(){
   const eff = getEffectiveParams();
   const div = document.getElementById('getupSets');
   div.innerHTML = '';
+
+  // Pre-Simple: 15 minutes quality practice, no checkboxes
+  if(state.preSimple){
+    const p = document.getElementById('getupProgress');
+    if(p) p.style.display = 'none';
+    div.innerHTML = `<div class="muted">15 minutes of <b>quality get-ups</b>. Move smoothly, own every position. Rest as needed.</div>`;
+    return;
+  }
+
   const sp = Splus();
   let doneCount = 0;
 
@@ -729,7 +785,7 @@ function renderGetUps(){
   }
 
   const p = document.getElementById('getupProgress');
-  if(p) p.textContent = `Get-Ups ${doneCount}/10`;
+  if(p){ p.style.display='inline-block'; p.textContent = `Get-Ups ${doneCount}/10`; }
 }
 
 
@@ -764,7 +820,11 @@ function renderSettings(){
   bellSel.value = String(state.S);
 
   // Toggles/selects
-  document.getElementById('waveToggle').checked = !!state.wave;
+  document.getElementById('waveToggle').checked = !!state.waveMode;
+  const halfT = document.getElementById('halfToggle');
+  if(halfT) halfT.checked = !!state.halfMode;
+  const preT = document.getElementById('preSimpleToggle');
+  if(preT) preT.checked = !!state.preSimple;
   document.getElementById('skillsToggle').checked = !!state.skillsEnabled;
 
   const modeWrap = document.getElementById('skillModeWrap');
@@ -824,10 +884,13 @@ function hideAllBlocks(){
 function go(id){
   hideAllBlocks();
   // skillCard can be skipped automatically if disabled
-  if(id === 'skillCard' && !state.skillsEnabled){
+  if(id === 'skillCard' && (!state.skillsEnabled || state.preSimple)){
     id = 'swingsCard';
   }
   document.getElementById(id).style.display = 'block';
+  // Pre-Simple: hide cooldown extras (optional)
+  const ex = document.getElementById('cooldownExtras');
+  if(ex) ex.style.display = (state.preSimple && id==='cooldownCard') ? 'none' : 'block';
   configureTimersForDay();
 }
 
@@ -935,6 +998,15 @@ function __old_startCountUp(elementId){
 
 function configureTimersForDay(){
   // Only set defaults; do not override actively running timers
+  if(state.preSimple){
+    if(!timerInterval && document.getElementById('swingsCard').style.display !== 'none'){
+      document.getElementById('swingTimer').innerText = '15:00';
+    }
+    if(!timerInterval && document.getElementById('getupsCard').style.display !== 'none'){
+      document.getElementById('getupTimer').innerText = '15:00';
+    }
+    return;
+  }
   if(state.isTimedDay){
     if(!timerInterval && document.getElementById('swingsCard').style.display !== 'none'){
       document.getElementById('swingTimer').innerText = '5:00';
@@ -980,10 +1052,17 @@ function finishRecovery(){
 
 /* Swings timer */
 function startSwings(){
+  if(state.preSimple){ startCountdown('swingTimer', 900); return; }
   if(state.isTimedDay) startCountdown('swingTimer', 300);
   else startCountUp('swingTimer');
 }
 function finishSwings(){
+  if(state.preSimple){
+    stopTimer();
+    releaseWakeLock();
+    go('getupsCard');
+    return;
+  }
   if(state.isTimedDay){
     const remaining = parseMMSS(document.getElementById('swingTimer').innerText);
     swingSeconds = 300 - remaining;
@@ -994,7 +1073,6 @@ function finishSwings(){
 
   if(state.isTimedDay){
     go('restCard');
-    // rest countdown + auto-advance
     document.getElementById('restTimer').innerText = '1:00';
     startCountdown('restTimer', 60);
     if(restTimeout) clearTimeout(restTimeout);
@@ -1010,10 +1088,17 @@ function finishSwings(){
 
 /* Get-ups timer */
 function startGetUps(){
+  if(state.preSimple){ startCountdown('getupTimer', 900); return; }
   if(state.isTimedDay) startCountdown('getupTimer', 600);
   else startCountUp('getupTimer');
 }
 function finishGetUps(){
+  if(state.preSimple){
+    stopTimer();
+    releaseWakeLock();
+    go('cooldownCard');
+    return;
+  }
   if(state.isTimedDay){
     const remaining = parseMMSS(document.getElementById('getupTimer').innerText);
     getupSeconds = 600 - remaining;
@@ -1027,11 +1112,30 @@ function finishGetUps(){
 
 /* ---------- Progression / session finish ---------- */
 function promoteIncrement(){
-  return state.wave ? 4 : 8;
+  // Wave Mode: smaller bell jumps (+4) but still uses classic S+ offset (+8)
+  // Half Mode: faster steps (every 2 weeks) and smaller S+ offset (+4)
+  if(state.halfMode) return 4;
+  if(state.waveMode) return 4;
+  return 8;
+}
+
+
+function finishSessionOrPractice(){
+  if(state.preSimple){
+    // Practice only: no history, no progression
+    if(!confirm('Finish practice session?')) return;
+    stopTimer(); releaseWakeLock();
+    if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
+    swingSeconds = null; getupSeconds = null;
+    hideAllBlocks();
+    document.getElementById('warmupCard').style.display = 'block';
+    return;
+  }
+  return finishSession();
 }
 
 function finishSession(){
-  if(!confirm('Session afronden? Dit kan niet ongedaan worden gemaakt.')) return;
+  if(!confirm('Finish session? This cannot be undone.')) return;
   // Save history entry (times only)
   const now = new Date();
   history.unshift({
@@ -1098,11 +1202,30 @@ function setBell(val){
   saveState();
   location.reload();
 }
-function setWave(on){
-  state.wave = !!on;
+function setWaveMode(on){
+  state.waveMode = !!on;
+  if(state.waveMode) state.halfMode = false; // mutually exclusive
   saveState();
+  renderSettings();
   renderStatus();
 }
+function setHalfMode(on){
+  state.halfMode = !!on;
+  if(state.halfMode) state.waveMode = false; // mutually exclusive
+  saveState();
+  location.reload();
+}
+
+function setPreSimple(on){
+  state.preSimple = !!on;
+  if(state.preSimple){
+    // Pre-Simple is practice only. Keep it simple: disable skills during practice.
+    state.skillsEnabled = false;
+  }
+  saveState();
+  location.reload();
+}
+
 function setSkillMode(val){
   const v = String(val);
   if(v !== 'sfg1' && v !== 'sfg2' && v !== 'alt') return;
@@ -1147,10 +1270,10 @@ function clearAllProgressKeys(){
 }
 
 function resetProgram(){
-  const ok = confirm('Reset session/step/skill cycle? (History stays)');
+  const ok = confirm('Reset session, step and skill cycle? (History stays)');
   if(!ok) return;
   clearAllProgressKeys();
-  const keep = { S: state.S, wave: state.wave, skillsEnabled: state.skillsEnabled, sfgCycleWeeks: state.sfgCycleWeeks, postSessionsPerWeek: state.postSessionsPerWeek, timedEnabled: state.timedEnabled };
+  const keep = { S: state.S, wave: state.waveMode, skillsEnabled: state.skillsEnabled, sfgCycleWeeks: state.sfgCycleWeeks, postSessionsPerWeek: state.postSessionsPerWeek, timedEnabled: state.timedEnabled };
   state = {...structuredClone(DEFAULT_STATE), ...keep};
   saveState();
   location.reload();
