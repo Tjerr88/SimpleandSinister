@@ -156,7 +156,7 @@
     </div>
     <div class="hr"></div>
     <div class="row">
-      <button class="ghost" onclick="finishSessionOrPractice()">Finish Session</button>
+      <button id="finishSessionBtn" class="ghost" onclick="finishSessionOrPractice()">Finish Session</button>
       <button class="ghost" onclick="resetToWarmup()">Back to top</button>
     </div>
   </div>
@@ -283,7 +283,8 @@
       • No weight increase<br/>
       • Only available after 2 weeks<br/>
       • Cooldown resets after use
-    
+    </div>
+
     <div class="row">
       <span class="muted">Manual step-back</span>
       <button id="manualStepBackBtn" class="warn" onclick="manualStepBack()">Back 1 step</button>
@@ -913,6 +914,11 @@ function clearTimer(name){
   const t = loadTimers(); delete t[name]; saveTimers(t);
 }
 
+function clearAllRuntimeTimers(){
+  ['skillTimer','swingTimer','restTimer','getupTimer'].forEach(clearTimer);
+  localStorage.removeItem(TIMER_KEY); // extra zekerheid
+}
+
 function realtimeCountdown(name, elementId, seconds, onDone){
   requestWakeLock();
   const endAt = Date.now() + seconds*1000;
@@ -1111,6 +1117,8 @@ function finishGetUps(){
 }
 
 /* ---------- Progression / session finish ---------- */
+let __finishGuard = false;
+
 function promoteIncrement(){
   // Wave Mode: smaller bell jumps (+4) but still uses classic S+ offset (+8)
   // Half Mode: faster steps (every 2 weeks) and smaller S+ offset (+4)
@@ -1121,6 +1129,9 @@ function promoteIncrement(){
 
 
 function finishSessionOrPractice(){
+  if(__finishGuard) return;
+  __finishGuard = true;
+  setTimeout(()=>{ __finishGuard = false; }, 400);
   if(state.preSimple){
     // Practice only: no history, no progression
     if(!confirm('Finish practice session?')) return;
@@ -1136,6 +1147,10 @@ function finishSessionOrPractice(){
 
 function finishSession(){
   if(!confirm('Finish session? This cannot be undone.')) return;
+  // HARD RESET current & next session checkmarks (start clean)
+  const oldSession = state.session;
+  localStorage.removeItem(`ss_progress_${oldSession}`);
+  localStorage.removeItem(`ss_progress_${oldSession + 1}`);
   // Save history entry (times only)
   const now = new Date();
   history.unshift({
@@ -1327,7 +1342,22 @@ function init(){
   hideAllBlocks();
   document.getElementById('warmupCard').style.display = 'block';
   configureTimersForDay();
+
+
+  // Mobile reliability: ensure Finish Session responds to touch
+  const fsb = document.getElementById('finishSessionBtn');
+  if(fsb){
+    const handler = (ev)=>{
+      try{ ev.preventDefault && ev.preventDefault(); ev.stopPropagation && ev.stopPropagation(); }catch(e){}
+      // Defer to avoid some mobile click quirks
+      setTimeout(()=>finishSessionOrPractice(), 0);
+      return false;
+    };
+    fsb.addEventListener('touchend', handler, {passive:false});
+    fsb.addEventListener('click', handler);
+  }
 }
+
 init();
 
 /* Cooldown timer (1:00 with beep) */
