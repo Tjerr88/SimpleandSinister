@@ -156,7 +156,7 @@
     </div>
     <div class="hr"></div>
     <div class="row">
-      <button id="finishSessionBtn" class="ghost" onclick="finishSessionOrPractice()">Finish Session</button>
+      <button id="finishSessionBtn" class="ghost">Finish Session</button>
       <button class="ghost" onclick="resetToWarmup()">Back to top</button>
     </div>
   </div>
@@ -1349,8 +1349,8 @@ function init(){
   if(fsb){
     const handler = (ev)=>{
       try{ ev.preventDefault && ev.preventDefault(); ev.stopPropagation && ev.stopPropagation(); }catch(e){}
-      // Defer to avoid some mobile click quirks
-      setTimeout(()=>finishSessionOrPractice(), 0);
+      // Call directly so embedded WebViews treat it as a user gesture
+      finishSessionOrPractice();
       return false;
     };
     fsb.addEventListener('touchend', handler, {passive:false});
