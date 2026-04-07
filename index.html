@@ -85,7 +85,8 @@
     <button class="primary" onclick="go(state.preSimple ? 'swingsCard' : 'skillCard')">Warm-up done</button>
     <div class="row" style="margin-top:.6rem">
       <button class="ghost" onclick="startRecoveryFromWarmup()">Dragging your tail?</button>
-      <span class="mini">Recovery swings only</span>
+      <button class="ghost" onclick="startClubbellFromWarmup()">CB</button>
+      <span class="mini">Recovery swings or 15 min Clubbell</span>
     </div>
   </div>
 
@@ -102,6 +103,20 @@
       <button class="primary" onclick="finishRecovery()">Done</button>
       <button class="ghost" onclick="cancelRecovery()">Back</button>
     </div>
+  </div>
+
+  <div class="card" id="cbCard" style="display:none">
+    <h2>Clubbell</h2>
+    <div class="muted" id="cbMeta"></div>
+    <div class="timer" id="cbTimer">15:00</div>
+    <div id="cbExercises"></div>
+    <div class="hr"></div>
+    <div class="row btnRow">
+      <button class="timerAction" onclick="startClubbell()">Start</button>
+      <button class="done" onclick="finishClubbell()">Finish</button>
+      <button class="ghost" onclick="cancelClubbell()">Back</button>
+    </div>
+    <div class="mini" style="margin-top:.6rem">Practice / flow only. This does not count as an S&amp;S session and does not change progression.</div>
   </div>
 
 <div class="card" id="skillCard" style="display:none">
@@ -412,6 +427,97 @@ const SFG2 = [
 ];
 const BELL_OPTIONS = [8,12,16,20,24,28,32,36,40,44,48,52,56];
 
+const CB_ROTATION = ['single','2h','double'];
+const CB_SESSION_KEY = 'ss_cb_session';
+const CB_INDEX_KEY = 'ss_cb_index';
+const CB_TYPE_LABELS = { single:'Single Club', '2h':'Two-Handed Club', double:'Double Club' };
+const CLUB_EXERCISES = [
+  { name:'Front Swing', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Two-Handed Front Swing', bucket:'Rhythmic', modes:['2h'] },
+  { name:'Side Swing', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Side Semi Circle Swing', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Pirouette Swing', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Front Pendulum', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Two-Handed Front Pendulum', bucket:'Rhythmic', modes:['2h'] },
+  { name:'Inside Pendulum', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Double Side Pendulum', bucket:'Rhythmic', modes:['double'] },
+  { name:'Two-Handed Guard Inside Pendulum', bucket:'Rhythmic', modes:['2h'] },
+  { name:'Outside Pendulum', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Two-Handed Guard Outside Pendulum', bucket:'Rhythmic', modes:['2h'] },
+  { name:'Lunge-Step Pendulum', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Two-Handed Guard Lunge-Step Pendulum', bucket:'Rhythmic', modes:['2h'] },
+  { name:'Side-Step Pendulum', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Two-Handed Guard Side-Step Pendulum', bucket:'Rhythmic', modes:['2h'] },
+  { name:'Front Circle', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Back Circle', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Inside Circle', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Outside Circle', bucket:'Rhythmic', modes:['single','double'] },
+  { name:'Two-Handed Side Circle', bucket:'Rhythmic', modes:['2h'] },
+  { name:'Alternating Circles: Front Stroke and Backstroke', bucket:'Rhythmic', modes:['double'] },
+
+  { name:'Front Clean to Order Position', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Front Clean to Order Position', bucket:'Ballistic', modes:['2h'] },
+  { name:'Front Clean to Shoulder Park', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Front Clean to Shoulder Park', bucket:'Ballistic', modes:['2h'] },
+  { name:'Front Clean to Flag Position', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Front Clean to Flag Position', bucket:'Ballistic', modes:['2h'] },
+  { name:'Front Clean to Back Position', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Front Clean to Back Position', bucket:'Ballistic', modes:['2h'] },
+  { name:'Side Clean to Guard Position', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Side Clean to Shoulder Park', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Side Clean to Back Position', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Side Clean to Side Flag', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Front Torch Jerk', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Front Torch Jerk', bucket:'Ballistic', modes:['2h'] },
+  { name:'Front Jerk', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Front Jerk', bucket:'Ballistic', modes:['2h'] },
+  { name:'Shoulder Park Front Jerk', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Shoulder Park Front Jerk', bucket:'Ballistic', modes:['2h'] },
+  { name:'Front Clean + Jerk', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Side Torch Jerk', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Side Jerk', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Shoulder Park Side Jerk', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Side Clean + Jerk', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Front Torch Snatch', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Front Torch Snatch', bucket:'Ballistic', modes:['2h'] },
+  { name:'Front Snatch', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Two-Handed Front Snatch', bucket:'Ballistic', modes:['2h'] },
+  { name:'Side Torch Snatch', bucket:'Ballistic', modes:['single','double'] },
+  { name:'Side Snatch', bucket:'Ballistic', modes:['single','double'] },
+
+  { name:'Torch Press', bucket:'Grinding', modes:['single','double'] },
+  { name:'Two-Handed Torch Press', bucket:'Grinding', modes:['2h'] },
+  { name:'Front Press', bucket:'Grinding', modes:['single','double'] },
+  { name:'Two-Handed Front Press', bucket:'Grinding', modes:['2h'] },
+  { name:'Flag Press', bucket:'Grinding', modes:['single','double'] },
+  { name:'Two-Handed Flag Press', bucket:'Grinding', modes:['2h'] },
+  { name:'Side Torch Press', bucket:'Grinding', modes:['single','double'] },
+  { name:'Side Press', bucket:'Grinding', modes:['single','double'] },
+  { name:'Side Flag Press', bucket:'Grinding', modes:['single','double'] },
+  { name:'Clean and Press', bucket:'Grinding', modes:['single','double'] },
+  { name:'Wrist Cast', bucket:'Grinding', modes:['single','double'] },
+  { name:'Two Handed Wrist Cast — The Crowbar', bucket:'Grinding', modes:['2h'] },
+  { name:'Arm Cast', bucket:'Grinding', modes:['single','double'] },
+  { name:'Alternating Arm Cast — Drumming Cast', bucket:'Grinding', modes:['double'] },
+  { name:'Two-Handed Arm Cast — The Gama Cast', bucket:'Grinding', modes:['2h'] },
+  { name:'Two-Handed Arm Cast Circular Pivot', bucket:'Grinding', modes:['2h'] },
+  { name:'Two-Handed Arm Cast to Flag Position — The Barbarian', bucket:'Grinding', modes:['2h'] },
+  { name:'Shoulder Cast', bucket:'Grinding', modes:['single','double'] },
+  { name:'Two-Handed Shoulder Cast', bucket:'Grinding', modes:['2h'] },
+  { name:'Shoulder Cast to Side Flag Position — The Muscle Out', bucket:'Grinding', modes:['single','double'] },
+  { name:'Double Shoulder Cast — The Crucifix', bucket:'Grinding', modes:['double'] },
+  { name:'Alternating Shoulder Cast — The Kodo Cast', bucket:'Grinding', modes:['double'] },
+  { name:'Head Cast', bucket:'Grinding', modes:['single','double'] },
+  { name:'Shoulder Cast Leverage Hold Variation', bucket:'Grinding', modes:['single','double'] },
+  { name:'Alternating Head Cast – The See-Saw', bucket:'Grinding', modes:['double'] },
+  { name:'Two-Handed Head Cast', bucket:'Grinding', modes:['2h'] },
+  { name:'Shield Cast', bucket:'Grinding', modes:['single','double'] },
+  { name:'Two-Handed Shield Cast', bucket:'Grinding', modes:['2h'] },
+  { name:'Parry Cast', bucket:'Grinding', modes:['single','double'] },
+  { name:'Reverse Parry Cast', bucket:'Grinding', modes:['single','double'] },
+  { name:'Two-Handed Parry Cast', bucket:'Grinding', modes:['2h'] }
+];
+
 /* ---------- Helpers ---------- */
 
 function getEffectiveParams(){
@@ -537,6 +643,68 @@ function parseMMSS(txt){
   const m = parseInt(parts[0],10) || 0;
   const s = parseInt(parts[1],10) || 0;
   return m*60+s;
+}
+
+function todayKey(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function clubCompatible(exercise, clubType){
+  return (exercise.modes || []).includes(clubType);
+}
+function clubPool(bucket, clubType){
+  return CLUB_EXERCISES.filter(x => x.bucket === bucket && clubCompatible(x, clubType));
+}
+function nextClubType(){
+  const idx = parseInt(localStorage.getItem(CB_INDEX_KEY) || '0', 10) || 0;
+  const clubType = CB_ROTATION[idx % CB_ROTATION.length];
+  localStorage.setItem(CB_INDEX_KEY, String((idx + 1) % CB_ROTATION.length));
+  return clubType;
+}
+function generateClubbellSession(){
+  const clubType = nextClubType();
+  const picks = [];
+  ['Rhythmic','Ballistic','Grinding'].forEach(bucket => {
+    const pool = clubPool(bucket, clubType).filter(x => !picks.some(p => p.name === x.name));
+    if(pool.length) picks.push(rand(pool));
+  });
+  return {
+    day: todayKey(),
+    clubType,
+    duration: 15 * 60,
+    exercises: picks.map(x => ({ name:x.name, bucket:x.bucket }))
+  };
+}
+function getClubbellSession(){
+  try{
+    const raw = localStorage.getItem(CB_SESSION_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && parsed.day === todayKey() && Array.isArray(parsed.exercises) && parsed.exercises.length){
+        return parsed;
+      }
+    }
+  }catch(e){}
+  const session = generateClubbellSession();
+  localStorage.setItem(CB_SESSION_KEY, JSON.stringify(session));
+  return session;
+}
+function renderClubbell(){
+  const session = getClubbellSession();
+  const meta = document.getElementById('cbMeta');
+  const list = document.getElementById('cbExercises');
+  if(meta) meta.innerText = `${CB_TYPE_LABELS[session.clubType] || session.clubType} · 15 minutes`;
+  if(list){
+    list.innerHTML = '';
+    session.exercises.forEach((ex, idx) => {
+      list.innerHTML += `
+        <div class="set">
+          <span>${idx + 1}. ${ex.name}</span>
+          <span class="mini">${ex.bucket}</span>
+        </div>`;
+    });
+  }
 }
 
 /* ---------- Phase logic ---------- */
@@ -877,7 +1045,7 @@ function renderSettings(){
 
 /* ---------- Navigation between blocks ---------- */
 function hideAllBlocks(){
-  ['warmupCard','recoveryCard','skillCard','swingsCard','restCard','getupsCard','cooldownCard'].forEach(id=>{
+  ['warmupCard','recoveryCard','cbCard','skillCard','swingsCard','restCard','getupsCard','cooldownCard'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -1028,6 +1196,32 @@ function configureTimersForDay(){
       document.getElementById('getupTimer').innerText = '0:00';
     }
   }
+}
+
+function startClubbellFromWarmup(){
+  stopTimer(); releaseWakeLock();
+  if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
+  renderClubbell();
+  hideAllBlocks();
+  document.getElementById('cbCard').style.display = 'block';
+  document.getElementById('cbTimer').innerText = '15:00';
+}
+function startClubbell(){
+  startCountdown('cbTimer', 900);
+}
+function finishClubbell(){
+  stopTimer();
+  clearTimer('cbTimer');
+  releaseWakeLock();
+  hideAllBlocks();
+  document.getElementById('warmupCard').style.display = 'block';
+}
+function cancelClubbell(){
+  stopTimer();
+  clearTimer('cbTimer');
+  releaseWakeLock();
+  hideAllBlocks();
+  document.getElementById('warmupCard').style.display = 'block';
 }
 
 /* Skill timer */
@@ -1333,6 +1527,7 @@ function init(){
   renderStatus();
   renderWarmup();
   renderSkill();
+  renderClubbell();
   renderSwings();
   renderGetUps();
   renderHistory();
