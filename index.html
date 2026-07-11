@@ -6,27 +6,27 @@
 <title>Simple &amp; Sinister</title>
 <style>
   :root{
-    --bg:#0f1115; --card:#1b1f27; --muted:#a9b0bf; --line:#2a2f3b;
-    --btn:#2e3442; --primary:#4c7dff; --done:#2f9e44; --warn:#f59f00;
-    --radius:14px;
+    --bg:#101216; --card:#191d24; --muted:#adb5c4; --line:#303542;
+    --btn:#282e3a; --primary:#5b7cff; --done:#2f9e44; --warn:#e9b44c;
+    --radius:10px;
   }
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#f5f5f5}
-  header{padding:1rem;text-align:center;font-weight:700;letter-spacing:.3px}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#f5f5f5;line-height:1.45}
+  header{padding:1.2rem 1rem .9rem;text-align:center;font-weight:700;letter-spacing:.3px}
   .tabs{display:flex;gap:.5rem;justify-content:center;padding:0 1rem 1rem;flex-wrap:wrap}
-  .tab{background:var(--card);color:#fff;border:none;border-radius:999px;padding:.45rem .85rem;font-size:.95rem}
+  .tab{background:var(--card);color:#fff;border:1px solid var(--line);border-radius:10px;padding:.45rem .85rem;font-size:.95rem}
   .tab.active{background:var(--primary)}
-  section{padding:0 1rem 1rem}
-  .card{background:var(--card);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+  section{padding:0 1rem 1rem;max-width:720px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:1rem;margin-bottom:.9rem;box-shadow:0 3px 10px rgba(0,0,0,.14)}
   h2{font-size:1rem;margin:0 0 .75rem 0;font-weight:700}
   .row{display:flex;justify-content:space-between;align-items:center;margin:.4rem 0;gap:.75rem;flex-wrap:wrap}
   .muted{color:var(--muted);font-size:.92rem}
   .hr{height:1px;background:var(--line);margin:.75rem 0}
-  button{background:var(--btn);color:#fff;border:none;border-radius:12px;padding:.6rem .9rem;font-size:.95rem}
+  button{background:var(--btn);color:#fff;border:none;border-radius:10px;padding:.6rem .9rem;font-size:.95rem;cursor:pointer}
   button.primary{background:var(--primary)}
   button.done{background:var(--done)}
   button.warn{background:var(--warn);color:#111}
   button.ghost{background:transparent;border:1px solid var(--line)}
-  .timer{font-size:2.1rem;text-align:center;margin:.4rem 0}
+  .timer{font-size:2.1rem;text-align:center;margin:.35rem 0 .45rem;font-variant-numeric:tabular-nums}
   .set{display:flex;justify-content:space-between;align-items:center;padding:.32rem 0}
 
   .set.doneRow{opacity:.55;text-decoration:line-through}
@@ -52,7 +52,7 @@
   /* --- Timer button UX --- */
   button.timerAction{background:var(--warn);color:#111;font-weight:700}
   .btnRow{display:flex;gap:.75rem;flex-wrap:wrap}
-  .btnRow button{flex:1;min-width:140px;padding:.85rem 1rem;border-radius:14px}
+  .btnRow button{flex:1;min-width:140px;padding:.85rem 1rem;border-radius:10px}
   .btnRow button.ghost{flex:0 0 auto;min-width:110px;padding:.7rem .9rem;opacity:.9}
   @media (max-width:420px){
     .btnRow button{min-width:100%}
@@ -181,9 +181,18 @@
     <h2>Settings</h2>
 
     <div class="row">
-      <span class="muted">Current Bell (S)</span>
+      <span class="muted">Current Get-Up Bell (S)</span>
       <select id="bellSelect" onchange="setBell(this.value)"></select>
     </div>
+
+    <div class="row">
+      <span class="muted">Standard</span>
+      <select id="standardSelect" onchange="setStandard(this.value)">
+        <option value="men">Men</option>
+        <option value="women">Women</option>
+      </select>
+    </div>
+    <div class="mini" id="standardNote"></div>
 
     <div class="row">
       <span class="muted">Wave Mode</span>
@@ -304,7 +313,7 @@
 
     <div class="hr"></div>
     <div class="muted">
-      Notes: Timeless = &lt;32 kg. Post-Simple = ≥32 kg. Two-hand swings every 3rd session.
+      Notes: Timeless runs until the selected Simple standard is reached. Two-hand swings every 3rd session.
     </div>
   </div>
 </section>
@@ -318,6 +327,7 @@ const DEFAULT_STATE = {
   S: 24,
   step: 0,
   phase: 'auto',
+  standard: 'men',
   waveMode: false,
   halfMode: false,
   preSimple: false,
@@ -332,7 +342,8 @@ const DEFAULT_STATE = {
   reEntryBaseS: null,
   reEntryBaseStep: null,
   reEntryIndex: 0,
-  skillMode: 'alt' // 'sfg1' | 'sfg2' | 'alt'
+  skillMode: 'alt', // 'sfg1' | 'sfg2' | 'alt'
+  activeBlock: 'warmupCard'
 };
 
 let state = (() => {
@@ -411,9 +422,31 @@ const SFG2 = [
   {name:'Bottom-Up Clean–Press–Squat', ladder:'1-1-1'}
 ];
 const BELL_OPTIONS = [8,12,16,20,24,28,32,36,40,44,48,52,56];
+const STANDARD_SPECS = {
+  men: { label: 'Men', simpleGetup: 32, simpleSwing: 32, sinisterGetup: 48, sinisterSwing: 48, swingOffset: 0 },
+  women: { label: 'Women', simpleGetup: 16, simpleSwing: 24, sinisterGetup: 24, sinisterSwing: 32, swingOffset: 8 }
+};
 
 /* ---------- Helpers ---------- */
 
+function standardSpec(){
+  return STANDARD_SPECS[state.standard] || STANDARD_SPECS.men;
+}
+function standardSwingOffset(){ return standardSpec().swingOffset || 0; }
+function swingBell(baseBell, plus=false){ return baseBell + standardSwingOffset() + (plus ? sPlusOffset() : 0); }
+function getupBell(baseBell, plus=false){ return baseBell + (plus ? sPlusOffset() : 0); }
+function standardNote(){
+  const st = standardSpec();
+  return `${st.label}: Simple GU ${st.simpleGetup} / SW ${st.simpleSwing} kg | Sinister GU ${st.sinisterGetup} / SW ${st.sinisterSwing} kg`;
+}
+function standardLevel(eff=getEffectiveParams()){
+  const st = standardSpec();
+  const gu = getupBell(eff.S, false);
+  const sw = swingBell(eff.S, false);
+  if(gu >= st.sinisterGetup && sw >= st.sinisterSwing) return 'Sinister';
+  if(gu >= st.simpleGetup && sw >= st.simpleSwing) return 'Simple';
+  return null;
+}
 function getEffectiveParams(){
   // Default: no override
   const baseS = state.S;
@@ -526,7 +559,7 @@ function manualStepBack(){
 
 
 function sPlusOffset(){ return state.halfMode ? 4 : 8; }
-function Splus(){ return getEffectiveParams().S + sPlusOffset(); }
+function Splus(){ return getupBell(getEffectiveParams().S, true); }
 function fmt(sec){
   sec = Math.max(0, Math.floor(sec));
   return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
@@ -543,8 +576,11 @@ function parseMMSS(txt){
 function computePhase(){
   const eff = getEffectiveParams();
 
+  const st = standardSpec();
+  const simpleReady = getupBell(eff.S, false) >= st.simpleGetup && swingBell(eff.S, false) >= st.simpleSwing;
+
   state.currentPhase = (state.phase === 'auto')
-    ? (eff.S >= 32 ? 'post' : 'timeless')
+    ? (simpleReady ? 'post' : 'timeless')
     : state.phase;
 
   state.nominalSessionsPerWeek = (state.currentPhase === 'post')
@@ -649,7 +685,8 @@ function showTab(tab){
 
 function renderStatus(){
   computePhase();
-  const phaseName = state.currentPhase === 'post' ? 'Post-Simple' : 'Timeless';
+  const level = standardLevel();
+  const phaseName = state.currentPhase === 'post' ? (level ? `Post-${level}` : 'Post-Simple') : 'Timeless';
   const swingType = (((state.session + 1) % 3) === 0) ? 'Two-hand swings' : 'One-arm swings';
   const timed = state.isTimedDay ? 'Timed day' : '';
   const wave = state.preSimple ? 'Pre-Simple' : (state.waveMode ? 'Wave Mode' : (state.halfMode ? 'Half Mode' : ''));
@@ -660,10 +697,10 @@ function renderStatus(){
   const eff = getEffectiveParams();
 
   document.getElementById('status').innerText =
-    `Session ${state.session + 1} · ${phaseName} · S ${eff.S} kg`;
+    `Session ${state.session + 1} | ${phaseName} | GU ${getupBell(eff.S)} kg | SW ${swingBell(eff.S)} kg`;
 
   document.getElementById('status2').innerText =
-    [`${(getEffectiveParams().step===0)?'Baseline':'Step '+getEffectiveParams().step+'/4'}`, swingType, timed, sfg, reEntryTag, wave].filter(Boolean).join(' · ');
+    [`${(getEffectiveParams().step===0)?'Baseline':'Step '+getEffectiveParams().step+'/4'}`, standardNote(), swingType, timed, sfg, reEntryTag, wave].filter(Boolean).join(' | ');
 
   return;
 }
@@ -709,12 +746,13 @@ function renderSwings(){
     return;
   }
 
-  const sp = Splus();
+  const swingBase = swingBell(eff.S, false);
+  const swingPlus = swingBell(eff.S, true);
   let doneCount = 0;
 
   for(let i=1;i<=10;i++){
     const star = isSwingStar(i);
-    const w = star ? sp : eff.S;
+    const w = star ? swingPlus : swingBase;
     const idx = i-1;
     const done = !!progress.swings[idx];
     if(done) doneCount++;
@@ -750,13 +788,14 @@ function renderGetUps(){
     return;
   }
 
-  const sp = Splus();
+  const getupBase = getupBell(eff.S, false);
+  const getupPlus = getupBell(eff.S, true);
   let doneCount = 0;
 
   // 10 singles total: L1,R1,...,L5,R5
   for(let i=1;i<=5;i++){
     const star = isGetUpPairStar(i);
-    const w = star ? sp : eff.S;
+    const w = star ? getupPlus : getupBase;
 
     const leftIdx = (i-1)*2;
     const rightIdx = (i-1)*2 + 1;
@@ -841,6 +880,11 @@ function renderSettings(){
     cycleSel.value = String(state.sfgCycleWeeks || 2);
   }
 
+  const standardSel = document.getElementById('standardSelect');
+  if(standardSel) standardSel.value = STANDARD_SPECS[state.standard] ? state.standard : 'men';
+  const standardText = document.getElementById('standardNote');
+  if(standardText) standardText.textContent = standardNote();
+
   const postSel = document.getElementById('postFreqSelect');
   postSel.value = String(state.postSessionsPerWeek || 4);
 
@@ -888,6 +932,8 @@ function go(id){
   if(id === 'skillCard' && (!state.skillsEnabled || state.preSimple)){
     id = 'swingsCard';
   }
+  state.activeBlock = id;
+  saveState();
   document.getElementById(id).style.display = 'block';
   // Pre-Simple: hide cooldown extras (optional)
   const ex = document.getElementById('cooldownExtras');
@@ -939,9 +985,9 @@ function realtimeCountdown(name, elementId, seconds, onDone){
   },200);
 }
 
-function realtimeCountUp(name, elementId){
+function realtimeCountUp(name, elementId, startAtOverride){
   requestWakeLock();
-  const startAt = Date.now();
+  const startAt = Number.isFinite(startAtOverride) ? startAtOverride : Date.now();
   setTimer(name, {type:"up", startAt, elementId});
 
   if(timerInterval) clearInterval(timerInterval);
@@ -960,7 +1006,23 @@ function restoreTimer(name){
     realtimeCountdown(name, t.elementId, Math.max(0, Math.ceil((t.endAt-Date.now())/1000)));
   }
   if(t.type === "up"){
-    realtimeCountUp(name, t.elementId);
+    realtimeCountUp(name, t.elementId, t.startAt);
+  }
+}
+
+function restoreActiveTimer(){
+  const block = state.activeBlock || 'warmupCard';
+  if(block === 'skillCard') restoreTimer('skillTimer');
+  if(block === 'swingsCard') restoreTimer('swingTimer');
+  if(block === 'getupsCard') restoreTimer('getupTimer');
+  if(block === 'restCard'){
+    const t = getTimer('restTimer');
+    if(t && t.type === "down"){
+      const remainingMs = Math.max(0, t.endAt - Date.now());
+      realtimeCountdown('restTimer', 'restTimer', Math.ceil(remainingMs/1000), ()=>{ clearTimer('restTimer'); go('getupsCard'); });
+      if(restTimeout) clearTimeout(restTimeout);
+      restTimeout = setTimeout(()=>{ restTimeout = null; clearTimer('restTimer'); go('getupsCard'); }, remainingMs);
+    }
   }
 }
 /* =============================================================== */
@@ -1032,26 +1094,34 @@ function configureTimersForDay(){
 
 /* Skill timer */
 function startSkill(){ startCountdown('skillTimer', 300); }
-function finishSkill(){ stopTimer(); releaseWakeLock(); go('swingsCard'); }
-function skipSkill(){ stopTimer(); releaseWakeLock(); go('swingsCard'); }
+function finishSkill(){ stopTimer(); clearTimer('skillTimer'); releaseWakeLock(); go('swingsCard'); }
+function skipSkill(){ stopTimer(); clearTimer('skillTimer'); releaseWakeLock(); go('swingsCard'); }
 
 /* ---------- Recovery (Dragging your tail) ---------- */
 function startRecoveryFromWarmup(){
   // Decide after moving a bit (warm-up). No session/progression changes.
   stopTimer(); releaseWakeLock();
+  clearAllRuntimeTimers();
   if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
   hideAllBlocks();
+  state.activeBlock = 'recoveryCard';
+  saveState();
   document.getElementById('recoveryCard').style.display = 'block';
 }
 function cancelRecovery(){
   hideAllBlocks();
+  state.activeBlock = 'warmupCard';
+  saveState();
   document.getElementById('warmupCard').style.display = 'block';
 }
 function finishRecovery(){
   // Intentionally does NOT log history and does NOT advance session/step.
   stopTimer(); releaseWakeLock();
+  clearAllRuntimeTimers();
   if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
   hideAllBlocks();
+  state.activeBlock = 'warmupCard';
+  saveState();
   document.getElementById('warmupCard').style.display = 'block';
 }
 
@@ -1065,6 +1135,7 @@ function startSwings(){
 function finishSwings(){
   if(state.preSimple){
     stopTimer();
+    clearTimer('swingTimer');
     releaseWakeLock();
     go('getupsCard');
     return;
@@ -1076,6 +1147,7 @@ function finishSwings(){
     swingSeconds = parseMMSS(document.getElementById('swingTimer').innerText);
   }
   stopTimer();
+  clearTimer('swingTimer');
 
   if(state.isTimedDay){
     go('restCard');
@@ -1084,6 +1156,7 @@ function finishSwings(){
     if(restTimeout) clearTimeout(restTimeout);
     restTimeout = setTimeout(()=>{
       restTimeout = null;
+      clearTimer('restTimer');
       go('getupsCard');
     }, 60000);
   } else {
@@ -1094,6 +1167,7 @@ function finishSwings(){
 
 /* Get-ups timer */
 function startGetUps(){
+  clearTimer('restTimer');
   if(state.preSimple){ startCountdown('getupTimer', 900); return; }
   if(state.isTimedDay) startCountdown('getupTimer', 600);
   else startCountUp('getupTimer');
@@ -1101,6 +1175,7 @@ function startGetUps(){
 function finishGetUps(){
   if(state.preSimple){
     stopTimer();
+    clearTimer('getupTimer');
     releaseWakeLock();
     go('cooldownCard');
     return;
@@ -1112,6 +1187,7 @@ function finishGetUps(){
     getupSeconds = parseMMSS(document.getElementById('getupTimer').innerText);
   }
   stopTimer();
+  clearTimer('getupTimer');
   releaseWakeLock();
   go('cooldownCard');
 }
@@ -1136,9 +1212,12 @@ function finishSessionOrPractice(){
     // Practice only: no history, no progression
     if(!confirm('Finish practice session?')) return;
     stopTimer(); releaseWakeLock();
+    clearAllRuntimeTimers();
     if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
     swingSeconds = null; getupSeconds = null;
     hideAllBlocks();
+    state.activeBlock = 'warmupCard';
+    saveState();
     document.getElementById('warmupCard').style.display = 'block';
     return;
   }
@@ -1194,7 +1273,8 @@ function finishSession(){
 
   // Reset transient timers for next session
   swingSeconds = null; getupSeconds = null;
-  stopTimer(); releaseWakeLock();
+  stopTimer(); clearAllRuntimeTimers(); releaseWakeLock();
+  state.activeBlock = 'warmupCard';
   if(restTimeout){ clearTimeout(restTimeout); restTimeout = null; }
 
   saveState();
@@ -1202,10 +1282,12 @@ function finishSession(){
 }
 
 function resetToWarmup(){
-  stopTimer(); releaseWakeLock();
+  stopTimer(); clearAllRuntimeTimers(); releaseWakeLock();
   if(restTimeout){ clearTimeout(restTimeout); restTimeout=null; }
   swingSeconds = null; getupSeconds = null;
   hideAllBlocks();
+  state.activeBlock = 'warmupCard';
+  saveState();
   document.getElementById('warmupCard').style.display = 'block';
 }
 
@@ -1214,6 +1296,13 @@ function setBell(val){
   const n = parseInt(val,10);
   if(!Number.isFinite(n)) return;
   state.S = n;
+  saveState();
+  location.reload();
+}
+function setStandard(val){
+  const v = String(val);
+  if(!STANDARD_SPECS[v]) return;
+  state.standard = v;
   saveState();
   location.reload();
 }
@@ -1288,7 +1377,8 @@ function resetProgram(){
   const ok = confirm('Reset session, step and skill cycle? (History stays)');
   if(!ok) return;
   clearAllProgressKeys();
-  const keep = { S: state.S, wave: state.waveMode, skillsEnabled: state.skillsEnabled, sfgCycleWeeks: state.sfgCycleWeeks, postSessionsPerWeek: state.postSessionsPerWeek, timedEnabled: state.timedEnabled };
+  clearAllRuntimeTimers();
+  const keep = { S: state.S, standard: state.standard, waveMode: state.waveMode, halfMode: state.halfMode, preSimple: state.preSimple, skillsEnabled: state.skillsEnabled, skillMode: state.skillMode, sfgCycleWeeks: state.sfgCycleWeeks, postSessionsPerWeek: state.postSessionsPerWeek, timedEnabled: state.timedEnabled, activeBlock: 'warmupCard' };
   state = {...structuredClone(DEFAULT_STATE), ...keep};
   saveState();
   location.reload();
@@ -1298,6 +1388,7 @@ function resetAll(){
   const ok = confirm('Factory reset EVERYTHING including history?');
   if(!ok) return;
   clearAllProgressKeys();
+  clearAllRuntimeTimers();
   localStorage.removeItem('ss_state');
   localStorage.removeItem('ss_history');
   location.reload();
@@ -1338,10 +1429,15 @@ function init(){
   renderHistory();
   renderSettings();
 
-  // Start on warmup
+  // Start on the last active block, falling back to warmup
   hideAllBlocks();
-  document.getElementById('warmupCard').style.display = 'block';
+  let startBlock = state.activeBlock || 'warmupCard';
+  if(startBlock === 'skillCard' && (!state.skillsEnabled || state.preSimple)) startBlock = 'swingsCard';
+  const startEl = document.getElementById(startBlock) || document.getElementById('warmupCard');
+  state.activeBlock = startEl.id;
+  startEl.style.display = 'block';
   configureTimersForDay();
+  restoreActiveTimer();
 
 
   // Mobile reliability: ensure Finish Session responds to touch
